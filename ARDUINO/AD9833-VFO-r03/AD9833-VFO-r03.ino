@@ -18,7 +18,6 @@
 #define Hardware 1
 #define Software 3
 
-// Arduino Library
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
 #include <SPI.h>             // Arduino SPI library
@@ -74,7 +73,10 @@ uint32_t FrequencyLimit[WaveTypeNumber][2] = {  1,  5000000,
      // Controllo della frequenza (2)
      // Attivo display 1 e 2
 
+#define GlobalModeNumber 2
 uint8_t GlobalMode = 0;
+String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
+                                          "Sweep"};
 
 //#=================================================================================
 // MAX7219 IC area
@@ -215,14 +217,13 @@ void setup()
   
   delay(3000);
 
-  tft.fillScreen(ST77XX_BLACK);
+  GlobalModeDisplay();
 
-  Frequency2Display.clear();
-  
   AD.begin();
   AD9833reset();
+  Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType][0];
   //Setta la frequenza minima per la forma d'onda corrente
-  AD9833FreqSet(FrequencyLimit[FrequencyWaveCurrentType][1],FrequencyWaveType[FrequencyWaveCurrentType]);
+  AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType]);
   DisplayFrenquency();
   
 }
@@ -634,6 +635,10 @@ void AD9833FreqSet(long frequency, int wave)
 }
 
 
+//-----------------------------------------------------------------------------
+// SevenSegHello
+//    set Seven segment Hello Message 
+//-----------------------------------------------------------------------------
 void SevenSegHello()
 {
   FrequencyDisplay.clear();
@@ -647,6 +652,10 @@ void SevenSegHello()
 }
 
 
+//-----------------------------------------------------------------------------
+// tftHello
+//    set TFT Hello Message 
+//-----------------------------------------------------------------------------
 void tftHello() 
 {
   tft.setTextWrap(false);
@@ -673,24 +682,32 @@ void tftHello()
   tft.setTextColor(ST77XX_BLUE);
 }
 
+//-----------------------------------------------------------------------------
+// DrawModeGraph
+//    Draw on tft the wave form and frequency limit
+//-----------------------------------------------------------------------------
 void DrawModeGraph(uint8_t Mode)
 {
   switch (Mode)
   {
     case 0:
-      DrawSine(64, 32,64, 20);
+      DrawSine(64, 32,64, 120);
       break;
     case 1:
-      DrawTriangle(64, 32,64, 20);
+      DrawTriangle(64, 32,64, 120);
       break;
     case 2:
-      DrawSquare(64, 32,64, 20);
+      DrawSquare(64, 32,64, 120);
       break;
     default:
       break;
   }
 }
 
+//-----------------------------------------------------------------------------
+// DrawSine
+//    Draw on tft the Sine sprite
+//-----------------------------------------------------------------------------
 void DrawSine(uint8_t Leng, float High,uint8_t Xx, uint8_t Yy)
 {
   //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
@@ -709,6 +726,10 @@ void DrawSine(uint8_t Leng, float High,uint8_t Xx, uint8_t Yy)
 }
 
 
+//-----------------------------------------------------------------------------
+// DrawTriangle
+//    Draw on tft the Triangle sprite
+//-----------------------------------------------------------------------------
 void DrawTriangle(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 {
   //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
@@ -725,6 +746,10 @@ void DrawTriangle(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
   }
 }
 
+//-----------------------------------------------------------------------------
+// DrawSquare
+//    Draw on tft the Square sprite
+//-----------------------------------------------------------------------------
 void DrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 {
   //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
@@ -744,6 +769,10 @@ void DrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
   }
 }
 
+//-----------------------------------------------------------------------------
+// PrintFrequencyLimit
+//    Draw on tft the Frequency limit for the wave sprite
+//-----------------------------------------------------------------------------
 void PrintFrequencyLimit(uint8_t Leng1, uint8_t High1,uint8_t Xx1, uint8_t Yy1)
 {
   //Cancella il simbolo precedente
@@ -758,32 +787,75 @@ void PrintFrequencyLimit(uint8_t Leng1, uint8_t High1,uint8_t Xx1, uint8_t Yy1)
   tft.print("MHz");
 }
 
-void DrawArrowFDisplay(uint8_t NumDisplay)
+
+//-----------------------------------------------------------------------------
+// DrawArrowFDisplay
+//    Draw on tft the Arrow to indicate the frequency display status
+//-----------------------------------------------------------------------------
+void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
 {
   switch (NumDisplay)
   {
     case 1:
+    //Display 1 freccia ROSSA
       tft.fillTriangle(0, 135, 10, 125, 10, 145, ST77XX_RED);
       break;
     case 2:
+    //Display 2 freccia ROSSA
       tft.fillTriangle(0, 25, 10, 15, 10, 35, ST77XX_RED);
       break;
     case 3:
+    //Display 1 freccia VERDE
       tft.fillTriangle(0, 135, 10, 125, 10, 145, ST77XX_GREEN);
       break;
     case 4:
+    //Display 2 freccia VERDE
       tft.fillTriangle(0, 25, 10, 15, 10, 35, ST77XX_GREEN);
       break;
     case 9:
+    //Display 1 freccia NERA
       tft.fillTriangle(0, 135, 10, 125, 10, 145, ST77XX_BLACK);
       break;
     case 10:
+    //Display 2 freccia NERA
       tft.fillTriangle(0, 25, 10, 15, 10, 35, ST77XX_BLACK);
       break;
     default:
       break;
   }
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_BLACK);
+  switch (ModeDisplay)
+  {
+    case 1:
+    //Scrive 1 
+      tft.setCursor(4,132);
+      tft.print("1");
+      break;
+    case 2:
+    //Scrive 2 
+      tft.setCursor(4,23);
+      tft.print("2");
+      break;
+    case 3:
+    //Scrive L 
+      tft.setCursor(4,132);
+      tft.print("L");
+      break;
+    case 4:
+    //Scrive H 
+      tft.setCursor(4,23);
+      tft.print("H");
+      break;
+    case 9:
+      break;
+    case 10:
+      break;
+    default:
+      break;
+  }
 }
+
 
 
 void DrawSweepDisplay(uint8_t Color)
@@ -801,6 +873,47 @@ void DrawSweepDisplay(uint8_t Color)
       tft.drawLine(10,25,13,25,ST77XX_RED);
       break;
     default:
+      break;
+  }
+}
+
+
+//-----------------------------------------------------------------------------
+// GlobalModeDisplay
+//    Preset the tft and the seven segment display for the current operating mode
+//-----------------------------------------------------------------------------
+void GlobalModeDisplay()
+{
+  //Inizializza il display tft
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE);
+  //Scrive la modalità sul TFT
+  tft.setCursor(0,0);
+  tft.print(GlobalModeLabel[GlobalMode]);
+  switch (GlobalMode)
+  {
+    case 0:
+    //Generazione a frequenza fissa
+      //Freccia verde e numero 1 sul display 1
+      DrawArrowFDisplay(3,1);
+      Forma d'onda per il display 1
+      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType]);
+      //Display frequenza 2 spento
+      Frequency2Display.clear();
+      break;
+    case 1:
+    //Generazione sweep fra frequenza 1 e frequenza 2
+      //Freccia rossa e lettera L sul display 1
+      DrawArrowFDisplay(1,3);
+      //Freccia verde e lettera H sul display 2
+      DrawArrowFDisplay(4,4);
+      //Forma d'onda per il display 1
+      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType]);
+      //Display frequenza 2 spento
+      Frequency2Display.clear();
+      breack;
+    default;
       break;
   }
 }
