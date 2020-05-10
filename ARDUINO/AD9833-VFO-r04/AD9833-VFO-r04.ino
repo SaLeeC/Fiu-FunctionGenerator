@@ -7,7 +7,7 @@
  */
 //Debug Level 0 nessun messaggio di debug
 //Debug Level 1 Solo messaggi relativi alla frequenza
-#define DebugLevel 0
+#define DebugLevel 1
 
 //#=================================================================================
 // Identificativo
@@ -44,9 +44,9 @@ const int wTriangle = 0b0000000000000010;
 const int wSquare   = 0b0000000000101000;
 
 //Frequenza corrente per i due generatori
-uint32_t Frequency[2];
+float Frequency[2];
 //Generatore corrente
-uint8_t  RefGen=0;
+uint8_t  CurrentGenerator=0;
 
 #define WaveTypeNumber 3
 
@@ -81,6 +81,14 @@ int8_t GlobalMode = 0;
 String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
                                           "Sweep"};
 
+uint16_t SweepTime=1; 
+//Ultimo marcher temporale fissato (in microsecondi)
+float TZero;
+float TXs;
+//Differenziale del tempo
+float SweepTStep;
+float FSweepStep;
+float SweepCurrentFrequency;
 //#=================================================================================
 // MAX7219 IC area
 //7 Segmenti per 8 digit - Display Frequenza
@@ -150,8 +158,8 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RS
 #define FERotaryButton 14
 SimpleRotary FrequencyRotary(FERotaryA,FERotaryB,FERotaryButton);
 
-uint8_t FrequencyRotariState;
-uint8_t FrequencyRotaryStep = 0;//potenza del 10 che si somma o sottrae alla frequenza
+uint8_t FrequencyRotaryState;
+uint8_t FrequencyRotaryStep[2] = {0, 0};//potenza del 10 che si somma o sottrae alla frequenza
 
 //#=================================================================================
 // Encoder Rotary area
@@ -162,7 +170,7 @@ uint8_t FrequencyRotaryStep = 0;//potenza del 10 che si somma o sottrae alla fre
 #define MERotaryButton 15
 SimpleRotary ModeRotary(MERotaryA,MERotaryB,MERotaryButton);
 
-uint8_t ModeRotariState;
+uint8_t ModeRotaryState;
 
 #define NumOfMode 2
 char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
@@ -220,7 +228,7 @@ void setup()
   
   delay(3000);
 
-  Frequency[RefGen] = FrequencyLimit[FrequencyWaveCurrentType[RefGen]][0];
+  Frequency[CurrentGenerator] = FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0];
   
   AD.begin();
   AD9833reset();
@@ -272,286 +280,366 @@ char nextChar(void)
 char *readPacket(void)
 // read a packet and return the 
 {
-  static enum { S_IDLE, S_READ_CMD, S_READ_MOD, S_READ_PKT } state = S_IDLE;
-  static char cBuf[PACKET_SIZE + 1];
-  static char *cp;
-  char c;
-
-  switch (state)
-  {
-  case S_IDLE:   // waiting for packet start
-    c = nextChar();
-    if (c == CMD_HELP)
-    {
-//      usage();
-      break;
-    }
-    if (c == PACKET_START)
-    {
-      cp = cBuf;
-      state = S_READ_CMD;
-    }
-    break;
-
-  case S_READ_CMD:   // waiting for command char
-    c = nextChar();
-    if (c == CMD_FREQ || c == CMD_PHASE || c == CMD_OUTPUT)
-    {
-      *cp++ = c;
-      state = S_READ_MOD;
-    }
-    else
-      state = S_IDLE;
-    break;
-
-  case S_READ_MOD: // Waiting for command modifier
-    c = nextChar();
-    if (c == OPT_FREQ || c == OPT_PHASE || c == OPT_SIGNAL ||
-      c == OPT_1 || c == OPT_2 || c == OPT_MODULATE)
-    {
-      *cp++ = c;
-      state = S_READ_PKT;
-    }
-    else
-      state = S_IDLE;
-    break;
-
-  case S_READ_PKT: // Reading parameter until packet end
-    c = nextChar();
-    if (c == PACKET_END)
-    {
-      *cp = '\0';
-      state = S_IDLE;
-      return(cBuf);
-    }
-    *cp++ = c;
-    break;
-
-  default:
-    state = S_IDLE;
-    break;
-  }
-  return(NULL);
+//  static enum { S_IDLE, S_READ_CMD, S_READ_MOD, S_READ_PKT } state = S_IDLE;
+//  static char cBuf[PACKET_SIZE + 1];
+//  static char *cp;
+//  char c;
+//
+//  switch (state)
+//  {
+//  case S_IDLE:   // waiting for packet start
+//    c = nextChar();
+//    if (c == CMD_HELP)
+//    {
+////      usage();
+//      break;
+//    }
+//    if (c == PACKET_START)
+//    {
+//      cp = cBuf;
+//      state = S_READ_CMD;
+//    }
+//    break;
+//
+//  case S_READ_CMD:   // waiting for command char
+//    c = nextChar();
+//    if (c == CMD_FREQ || c == CMD_PHASE || c == CMD_OUTPUT)
+//    {
+//      *cp++ = c;
+//      state = S_READ_MOD;
+//    }
+//    else
+//      state = S_IDLE;
+//    break;
+//
+//  case S_READ_MOD: // Waiting for command modifier
+//    c = nextChar();
+//    if (c == OPT_FREQ || c == OPT_PHASE || c == OPT_SIGNAL ||
+//      c == OPT_1 || c == OPT_2 || c == OPT_MODULATE)
+//    {
+//      *cp++ = c;
+//      state = S_READ_PKT;
+//    }
+//    else
+//      state = S_IDLE;
+//    break;
+//
+//  case S_READ_PKT: // Reading parameter until packet end
+//    c = nextChar();
+//    if (c == PACKET_END)
+//    {
+//      *cp = '\0';
+//      state = S_IDLE;
+//      return(cBuf);
+//    }
+//    *cp++ = c;
+//    break;
+//
+//  default:
+//    state = S_IDLE;
+//    break;
+//  }
+//  return(NULL);
 }
 
 void processPacket(char *cp)
 // Assume we have a correctly formed packet from the pasing in readPacket()
 {
-  uint32_t  ul;
-//  MD_AD9833::channel_t chan;
-  MD_AD9833::mode_t mode;
-
-  switch (*cp++)
-  {
-  case CMD_FREQ:
-    switch (*cp++)
-    {
-    case OPT_1:
-      chan = MD_AD9833::CHAN_0;
-      RefGen = 0;
-      break;
-    case OPT_2:
-      chan = MD_AD9833::CHAN_1;
-      RefGen = 1;
-      break;
-    case OPT_MODULATE:
-      /* do something in future */
-      break;
-    }
-
-    ul = strtoul(cp, NULL, 10);
-    Frequency[RefGen] = ul;//Salva il valore della frequenza nel buffer di servizio
-    Serial.print("canale ");
-    Serial.print(RefGen);
-    Serial.print(" - Frequenza ");
-    Serial.println(Frequency[RefGen]);
-//    DisplayFrenquency();
-    AD.setFrequency(chan, ul);
-    break;
-
-  case CMD_PHASE:
-    switch (*cp++)
-    {
-    case OPT_1: chan = MD_AD9833::CHAN_0; break;
-    case OPT_2: chan = MD_AD9833::CHAN_1; break;
-    }
-
-    ul = strtoul(cp, NULL, 10);
-    AD.setPhase(chan, (uint16_t)ul);
-    break;
-
-  case CMD_OUTPUT:
-    switch (*cp++)
-    {
-    case OPT_FREQ:
-      switch (*cp)
-      {
-      case OPT_1:
-        chan = MD_AD9833::CHAN_0;
-        RefGen = 0;
-        break;
-      case OPT_2:
-        chan = MD_AD9833::CHAN_1;
-        RefGen = 1;
-        break;
-      case OPT_MODULATE:
-        /* do something in future */
-        break;
-      }
-      AD.setActiveFrequency(chan);
-      break;
-
-    case OPT_PHASE:
-      switch (*cp)
-      {
-      case OPT_1: chan = MD_AD9833::CHAN_0; break;
-      case OPT_2: chan = MD_AD9833::CHAN_1; break;
-      case OPT_MODULATE: /* do something in future */ break;
-      }
-      AD.setActivePhase(chan);
-      break;
-
-    case OPT_SIGNAL:
-      switch (*cp)
-      {
-      case 'O': mode = MD_AD9833::MODE_OFF;    break;
-      case 'S': mode = MD_AD9833::MODE_SINE;   break;
-      case 'T': mode = MD_AD9833::MODE_TRIANGLE;  break;
-      case 'Q': mode = MD_AD9833::MODE_SQUARE1;  break;
-      }
-      AD.setMode(mode);
-      break;
-    }
-    break;
-  }
-
-  return;
+//  uint32_t  ul;
+////  MD_AD9833::channel_t chan;
+//  MD_AD9833::mode_t mode;
+//
+//  switch (*cp++)
+//  {
+//  case CMD_FREQ:
+//    switch (*cp++)
+//    {
+//    case OPT_1:
+//      chan = MD_AD9833::CHAN_0;
+//      CurrentGenerator = 0;
+//      break;
+//    case OPT_2:
+//      chan = MD_AD9833::CHAN_1;
+//      CurrentGenerator = 1;
+//      break;
+//    case OPT_MODULATE:
+//      /* do something in future */
+//      break;
+//    }
+//
+//    ul = strtoul(cp, NULL, 10);
+//    Frequency[CurrentGenerator] = ul;//Salva il valore della frequenza nel buffer di servizio
+//    Serial.print("canale ");
+//    Serial.print(CurrentGenerator);
+//    Serial.print(" - Frequenza ");
+//    Serial.println(Frequency[CurrentGenerator]);
+////    DisplayFrenquency();
+//    AD.setFrequency(chan, ul);
+//    break;
+//
+//  case CMD_PHASE:
+//    switch (*cp++)
+//    {
+//    case OPT_1: chan = MD_AD9833::CHAN_0; break;
+//    case OPT_2: chan = MD_AD9833::CHAN_1; break;
+//    }
+//
+//    ul = strtoul(cp, NULL, 10);
+//    AD.setPhase(chan, (uint16_t)ul);
+//    break;
+//
+//  case CMD_OUTPUT:
+//    switch (*cp++)
+//    {
+//    case OPT_FREQ:
+//      switch (*cp)
+//      {
+//      case OPT_1:
+//        chan = MD_AD9833::CHAN_0;
+//        CurrentGenerator = 0;
+//        break;
+//      case OPT_2:
+//        chan = MD_AD9833::CHAN_1;
+//        CurrentGenerator = 1;
+//        break;
+//      case OPT_MODULATE:
+//        /* do something in future */
+//        break;
+//      }
+//      AD.setActiveFrequency(chan);
+//      break;
+//
+//    case OPT_PHASE:
+//      switch (*cp)
+//      {
+//      case OPT_1: chan = MD_AD9833::CHAN_0; break;
+//      case OPT_2: chan = MD_AD9833::CHAN_1; break;
+//      case OPT_MODULATE: /* do something in future */ break;
+//      }
+//      AD.setActivePhase(chan);
+//      break;
+//
+//    case OPT_SIGNAL:
+//      switch (*cp)
+//      {
+//      case 'O': mode = MD_AD9833::MODE_OFF;    break;
+//      case 'S': mode = MD_AD9833::MODE_SINE;   break;
+//      case 'T': mode = MD_AD9833::MODE_TRIANGLE;  break;
+//      case 'Q': mode = MD_AD9833::MODE_SQUARE1;  break;
+//      }
+//      AD.setMode(mode);
+//      break;
+//    }
+//    break;
+//  }
+//
+//  return;
 }
 
 
+//#=================================================================================
+// Loop
+//#=================================================================================
 void loop()
 {
-  char  *cp;
-  
-  if ((cp = readPacket()) != NULL)
-    processPacket(cp);
+  CheckRotary();
+//  char  *cp;
+//  
+//  if ((cp = readPacket()) != NULL)
+//    processPacket(cp);
+  if (GlobalMode==1)
+  {
+    //Se è finito il tempo di sweep, azzera i parametri e inizia una nuova rampa
+    if (millis()-TZero>SweepTime)
+    {
+      //Frequenza Iniziale
+      SweepCurrentFrequency=Frequency[0];
+      //Azzera il contatore del tempo di Sweep
+      TZero=millis();
+      //Attualizza la frequenza
+      AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]]);
+      //Mette il tempo per lo step corrente uguale al tempo di inizio
+      TXs=TZero;
+    }
+    else
+    {
+      //Se è trascorso il tempo di passo aggiorna la frequenza al prossimo passo
+      //e il tempo relativo per il prossimo passo
+      if (millis()-TXs>= SweepTStep)
+      {
+        SweepCurrentFrequency+=FSweepStep;
+        //Attualizza la frequenza
+        AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]]);
+        TXs=millis();
+      }
+    }
+  }
 }
 
 void CheckRotary()
 {
-//  Serial.println("CheckRotary");
-  if (HIGH == digitalRead(FERotaryButton))
-  //Se il rotore dell'encoder della frquenza NON è premuto gestisce la frequenza
+  FrequencyRotaryState= FrequencyRotary.rotate();
+  if (FrequencyRotaryState != 0)
   {
-    CheckRotaryFrequency();
+    if (HIGH == digitalRead(FERotaryButton))
+    //Se il rotore dell'encoder della frquenza NON è premuto ed è stato ruotato gestisce la frequenza
+    {
+      CheckRotaryFrequency();
+    }
+    else
+    {
+      CheckRotaryFrequencyStep();
+    }    
   }
-  else
+
+  ModeRotaryState = ModeRotary.rotate();
+  if (ModeRotaryState != 0)
   {
-    CheckRotaryFrequencyStep();
-  }
-//  Serial.println("CheckRotary");
-  if (HIGH == digitalRead(MERotaryButton))
-  {
-    CheckRotaryMode();
-  }
-  else
-  {
-    CheckRotaryGlobalMode();
+    if (HIGH == digitalRead(MERotaryButton))
+    {
+      Serial.println("Mode");
+      CheckRotaryMode();
+    }
+    else
+    {
+      Serial.println("Global");
+      CheckRotaryGlobalMode();
+    }
   }
 }
 
 void CheckRotaryFrequencyStep()
 {
-  Serial.println("Rotary Step");
-  FrequencyDisplay.clear();
-  FrequencyDisplay.write(FrequencyRotaryStep+1,B01100011);
-  delay(1000);
+  if (CurrentGenerator == 0)
+  {
+    FrequencyDisplay.clear();
+    FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B01100011);    
+  }
+  else
+  {
+    Frequency2Display.clear();
+    Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);        
+  }
+  delay(10);
   while (digitalRead(FERotaryButton) == LOW)
   {
-    FrequencyRotariState = FrequencyRotary.rotate();
+    FrequencyRotaryState= FrequencyRotary.rotate();
 // 0 = not turning, 1 = CW, 2 = CCW
-    if ( FrequencyRotariState == 1 ) 
+    if (CurrentGenerator == 0)
     {
-      FrequencyRotaryStep++;
-      FrequencyDisplay.clear();
-      FrequencyDisplay.write(FrequencyRotaryStep+1,B01100011);
-      delay(200);
+      if ( FrequencyRotaryState== 1 ) 
+      {
+        FrequencyRotaryStep[0]++;
+        FrequencyDisplay.clear();
+        FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B01100011);
+        delay(20);
+      }
+      if ( FrequencyRotaryState== 2 ) 
+      {
+        FrequencyRotaryStep[0]--;
+        FrequencyDisplay.clear();
+        FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B11100011);
+        delay(20);
+      }  
     }
-    if ( FrequencyRotariState == 2 ) 
+    else
     {
-      FrequencyRotaryStep--;
-      FrequencyDisplay.clear();
-      FrequencyDisplay.write(FrequencyRotaryStep+1,B11100011);
-      delay(200);
-    }  
+      if ( FrequencyRotaryState== 1 ) 
+      {
+        FrequencyRotaryStep[1]++;
+        Frequency2Display.clear();
+        Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);
+        delay(20);
+      }
+      if ( FrequencyRotaryState== 2 ) 
+      {
+        FrequencyRotaryStep[1]--;
+        Frequency2Display.clear();
+        Frequency2Display.write(FrequencyRotaryStep[1]+1,B11100011);
+        delay(20);
+      }        
+    }
   }
 }
 
 
 void CheckRotaryFrequency()
 {
-  if (DebugLevel & 0B00000001)Serial.println("Rotary Frequency");
-  // 0 = not turning, 1 = CW, 2 = CCW
-  FrequencyRotariState = FrequencyRotary.rotate();
-  if (DebugLevel & 0B00000001)Serial.print("Rotary state ");
-  if (DebugLevel & 0B00000001)Serial.println(FrequencyRotariState);
-  if ( FrequencyRotariState != 0 )
+  //Modifica il valore della frequenza
+  //Ruota in senso orario -> Aumenta la frequenza
+  if ( FrequencyRotaryState== 1 ) 
   {
-    //Ruota in senso orario -> Aumenta la frequenza
-    if ( FrequencyRotariState == 1 ) 
-    {
-      if (DebugLevel & 0B00000001)Serial.println("F Aumenta");
-      Frequency[RefGen] += pow(10,FrequencyRotaryStep);
-    }
-
-    //Ruota in senso antiorario -> Diminuisce la frequenza
-    if ( FrequencyRotariState == 2 ) 
-    {
-      if (DebugLevel & 0B00000001)Serial.println("F Diminuisce");
-      Frequency[RefGen] -= pow(10,FrequencyRotaryStep);
-    }
-
-    //Controlla il fuori scala inferiore
-    if (Frequency[RefGen]<FrequencyLimit[FrequencyWaveCurrentType[RefGen]][0])
-    {
-      Frequency[RefGen] = FrequencyLimit[FrequencyWaveCurrentType[RefGen]][1];
-    }
-
-    //Controlla il fuori scala superiore
-    if (Frequency[RefGen]>FrequencyLimit[FrequencyWaveCurrentType[RefGen]][1])
-    {
-      Frequency[RefGen] = FrequencyLimit[FrequencyWaveCurrentType[RefGen]][0];
-    }
-
-    //Setta frequenza e forma d'onda
-    AD9833FreqSet(Frequency[RefGen],FrequencyWaveType[FrequencyWaveCurrentType[RefGen]]);
-    if (DebugLevel & 0B00000001)Serial.println("Ha settato F e forma d'onda");
-    //Aggiorna il display
-    DisplayFrenquency();
-
+    Frequency[CurrentGenerator] += pow(10,FrequencyRotaryStep[CurrentGenerator]);
   }
-    
+  //Ruota in senso antiorario -> Diminuisce la frequenza
+  if ( FrequencyRotaryState== 2 ) 
+  {
+    Frequency[CurrentGenerator] -= pow(10,FrequencyRotaryStep[CurrentGenerator]);
+  }
+  //Fa il controllo del fuori scala (differenziato in funzione della modalità di funzionamento)
+  switch (GlobalMode)
+  {
+    case 0:
+      //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
+      //Controlla il fuori scala inferiore
+      if (Frequency[0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
+      {
+        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+      }
+      //Controlla il fuori scala superiore
+      if (Frequency[0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      {
+        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
+      }
+      //Setta frequenza e forma d'onda
+      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      break;
+    case 1:
+      //Controlla il fuori scala rispetto al limite superiore per forma d'onda e inferiore per F0+1
+      //Controlla il fuori scala inferiore
+      if (Frequency[1]<Frequency[0]+1)
+      {
+        Frequency[1] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+      }
+      //Controlla il fuori scala superiore
+      if (Frequency[1]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      {
+        Frequency[1] = Frequency[0]+1;
+      }
+      //Ricalcola i parametri di sweep
+      SweepTStep = 1;
+      FSweepStep=(Frequency[1]-Frequency[0])/(SweepTime/SweepTStep);
+      if (FSweepStep<1.0)
+      {
+        SweepTStep= 1/FSweepStep;
+        FSweepStep=(Frequency[1]-Frequency[0])/(SweepTime/SweepTStep);
+      }
+      break;
+    default:
+      break;
+  }
+  //Aggiorna il display
+  DisplayFrenquency();
 }
 
 void CheckRotaryGlobalMode()
 {
-  Serial.println("Rotary Global Mode");
   while (digitalRead(MERotaryButton) == LOW)
   {
     // 0 = not turning, 1 = CW, 2 = CCW
-    ModeRotariState = ModeRotary.rotate();
+    ModeRotaryState = ModeRotary.rotate();
   
     //Se non è stato girato salta tutto
-    if ( ModeRotariState != 0 )
+    if ( ModeRotaryState != 0 )
     {
       //Ruota in senso orario -> Aumenta il parametro del modo corrente
-      if ( ModeRotariState == 1 ) 
+      if ( ModeRotaryState == 1 ) 
       {
         GlobalMode++;
       }
 
       //Ruota in senso antiorario -> Diminuisce la frequenza
-      if ( ModeRotariState == 2 ) 
+      if ( ModeRotaryState == 2 ) 
       {
         GlobalMode--;
       }
@@ -575,63 +663,95 @@ void CheckRotaryGlobalMode()
 
 void CheckRotaryMode()
 {
-
   // 0 = not turning, 1 = CW, 2 = CCW
-  ModeRotariState = ModeRotary.rotate();
+//  ModeRotaryState = ModeRotary.rotate();
   
   //Se non è stato girato salta tutto
-  if ( ModeRotariState != 0 )
-  {
-    //Ruota in senso orario -> Aumenta il parametro del modo corrente
-    if ( ModeRotariState == 1 ) 
+//  if ( ModeRotaryState != 0 )
+//  {
+    switch (GlobalMode)
     {
-//      Serial.println("F Aumenta");
-      FrequencyWaveCurrentType[RefGen] ++;
-    }
+      case 0:
+        Serial.println("Global 0 Wave");
+        //Ruota in senso orario -> Aumenta il parametro del modo corrente
+        if ( ModeRotaryState == 1 ) 
+        {
+          FrequencyWaveCurrentType[0]++;
+        }
 
-    //Ruota in senso antiorario -> Diminuisce la frequenza
-    if ( ModeRotariState == 2 ) 
-    {
-//      Serial.println("F Diminuisce");
-      FrequencyWaveCurrentType[RefGen]--;
-    }
+        //Ruota in senso antiorario -> Diminuisce la frequenza
+        if ( ModeRotaryState == 2 ) 
+        {
+          FrequencyWaveCurrentType[0]--;
+        }
   
 
-    //Controlla il fuori scala superiore
-    if (FrequencyWaveCurrentType[RefGen]>=WaveTypeNumber)
-    {
-      FrequencyWaveCurrentType[RefGen] = 0;
-    }
+        //Controlla il fuori scala superiore
+        if (FrequencyWaveCurrentType[0]>=WaveTypeNumber)
+        {
+          FrequencyWaveCurrentType[0] = 0;
+        }
 
-    //Controlla il fuori scala inferiore
-    if (FrequencyWaveCurrentType[RefGen]<0)
-    {
-      FrequencyWaveCurrentType[RefGen] = WaveTypeNumber-1;
-    }
+        //Controlla il fuori scala inferiore
+        if (FrequencyWaveCurrentType[0]<0)
+        {
+          FrequencyWaveCurrentType[0] = WaveTypeNumber-1;
+        }
 
-    //Setta frequenza e forma d'onda
-    DrawModeGraph(FrequencyWaveCurrentType[RefGen]);
+        //Setta frequenza e forma d'onda
+        DrawModeGraph(FrequencyWaveCurrentType[0]);
     
-    AD9833FreqSet(Frequency[RefGen],FrequencyWaveType[FrequencyWaveCurrentType[RefGen]]);
-    Serial.println("Ha settato F e forma d'onda");
-    //Aggiorna il display
-    DisplayFrenquency();
+        AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]]);
+        //Aggiorna il display
+        DisplayFrenquency();
+        break;
+      case 1:
+        Serial.println("Global 1 Sweep time");
+        //Ruota in senso orario -> Aumenta il parametro del modo corrente
+        if ( ModeRotaryState == 1 ) 
+        {
+          SweepTime++;
+        }
 
-  }
+        //Ruota in senso antiorario -> Diminuisce la frequenza
+        if ( ModeRotaryState == 2 ) 
+        {
+          SweepTime--;
+        }
+  
+        //Controlla il fuori scala superiore
+        if (SweepTime>=65500)
+        {
+          SweepTime = 1;
+        }
+
+        //Controlla il fuori scala inferiore
+        if (SweepTime<1)
+        {
+          SweepTime = 65500;
+        }
+        DrawSweepTime(10,60);
+        
+        break;
+      default:
+        break;
+    }
+//  }
 }
 
 
 void DisplayFrenquency()
 {
   //Stampa la frequenza corrente allineata a destra
-  FrequencyDisplay.clear();
-  if(RefGen==0)
+  if(CurrentGenerator==0)
   {
-    FrequencyDisplay.printDigit(Frequency[RefGen],0);
+    FrequencyDisplay.clear();
+    FrequencyDisplay.printDigit(Frequency[0],0);
   }
   else
   {
-    Frequency2Display.printDigit(Frequency[RefGen],0);
+    Frequency2Display.clear();
+    Frequency2Display.printDigit(Frequency[1],0);    
   }
 }
 
@@ -823,9 +943,9 @@ void PrintFrequencyLimit(uint8_t Leng1, uint8_t High1,uint8_t Xx1, uint8_t Yy1)
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(Xx1,Yy1+High1-8);
-  tft.print(FrequencyLimit[FrequencyWaveCurrentType[RefGen]][0]);
+  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
   tft.print("Hz - ");
-  tft.print(FrequencyLimit[FrequencyWaveCurrentType[RefGen]][1]/1000000);
+  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
   tft.print("MHz");
 }
 
@@ -943,26 +1063,60 @@ void GlobalModeDisplay()
       //Freccia verde e numero 1 sul display 1
       DrawArrowFDisplay(3,1);
       //Forma d'onda per il display 1
-      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[RefGen]]);
+      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      CurrentGenerator = 0;
       //Display frequenza 2 spento
       Frequency2Display.clear();
       //Setta la frequenza minima per la forma d'onda corrente
-      AD9833FreqSet(Frequency[RefGen],FrequencyWaveType[FrequencyWaveCurrentType[RefGen]]);
+      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       DisplayFrenquency();
 
       break;
     case 1:
     //Generazione sweep fra frequenza 1 e frequenza 2
+      //Calcola il tempo necessario ad impostare la frequenza
+      SweepTStep=micros();
+      //Simula il calcolo della prossima frequenza
+      Frequency[CurrentGenerator]=Frequency[CurrentGenerator]+0;
+      //Simula l'aggiornamento del generatore
+      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      SweepTStep=(micros()-SweepTStep)/1000.0;
+      DisplayFrenquency();
+      delay(10);
       //Freccia rossa e lettera L sul display 1
       DrawArrowFDisplay(1,3);
       //Freccia verde e lettera H sul display 2
       DrawArrowFDisplay(4,4);
       //Forma d'onda per il display 1
-      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[RefGen]]);
-      //Display frequenza 2 spento
-      Frequency2Display.clear();
+      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      DrawSweepTime(10,60);
+      CurrentGenerator = 1;
+      //Inizializza la seconda frequenza (quella di arrivo)
+      Frequency[1] = Frequency[0]+1;
+      //Display frequenza 2
+      DisplayFrenquency();
+      //Inizializza TZero per la misurazione del tempo di sweep
+      TZero=millis();
       break;
     default:
       break;
   }
+}
+
+void DrawSweepTime(uint8_t Xx,uint8_t Yy)
+{
+  //Cancella il simbolo precedente
+  tft.fillRect(Xx,Yy-1,80, 15, ST77XX_BLACK);
+  delay(10);
+  tft.fillRect(Xx,Yy-1,80, 15, ST77XX_BLACK);
+  //Scrive il periodo sdi sweep corrente
+  tft.setTextSize(2);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(Xx,Yy);
+  tft.print(SweepTime);
+  tft.print("mS");  
+  tft.setTextSize(1);
+  tft.setCursor(Xx,Yy+15);
+  tft.print(SweepTStep,3);
+  tft.print(" Delta T min");
 }
