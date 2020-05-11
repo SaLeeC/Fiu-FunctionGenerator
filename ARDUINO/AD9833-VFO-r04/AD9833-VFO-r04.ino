@@ -75,11 +75,13 @@ uint32_t FrequencyLimit[WaveTypeNumber][2] = {  1,  5000000,
      // Controllo della forma d'onda
      // Controllo della frequenza (2)
      // Attivo display 1 e 2
+// 2 -> Usa entrambe i generatori e li mixa
 
-#define GlobalModeNumber 2
+#define GlobalModeNumber 3
 int8_t GlobalMode = 0;
 String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
-                                          "Sweep"};
+                                          "Sweep",
+                                          "Modulation"};
 
 uint16_t SweepTime=1; 
 //Ultimo marcher temporale fissato (in microsecondi)
@@ -176,6 +178,14 @@ uint8_t ModeRotaryState;
 char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
 
 //#=================================================================================
+// Pulsantiera area
+//Settaggio varie funzioni
+//#=================================================================================
+#define PushGlobalMode 16
+#define Push1 17
+#define Push2 18
+
+//#=================================================================================
 // Serial
 //#=================================================================================
 #define SerialSpeed 57600
@@ -209,6 +219,10 @@ void setup()
 
   pinMode(FERotaryButton, INPUT_PULLUP);
   pinMode(MERotaryButton, INPUT_PULLUP);
+
+  pinMode(PushGlobalMode, INPUT_PULLUP);
+  pinMode(Push1, INPUT_PULLUP);
+  pinMode(Push2, INPUT_PULLUP);
 
   tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
 
@@ -268,7 +282,7 @@ char nextChar(void)
 // Blocking wait
 {
   //Controlla il pannello comandi
-  CheckRotary();
+  CheckControllPanel();
   while (!Serial.available())
   //Controlla la seriale in attesa di comandi
   {
@@ -442,7 +456,7 @@ void processPacket(char *cp)
 //#=================================================================================
 void loop()
 {
-  CheckRotary();
+  CheckControllPanel();
 //  char  *cp;
 //  
 //  if ((cp = readPacket()) != NULL)
@@ -457,7 +471,7 @@ void loop()
       //Azzera il contatore del tempo di Sweep
       TZero=millis();
       //Attualizza la frequenza
-      AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]]);
+      AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
       //Mette il tempo per lo step corrente uguale al tempo di inizio
       TXs=TZero;
     }
@@ -469,41 +483,63 @@ void loop()
       {
         SweepCurrentFrequency+=FSweepStep;
         //Attualizza la frequenza
-        AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]]);
+        AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
         TXs=millis();
       }
     }
   }
 }
 
-void CheckRotary()
+void CheckControllPanel()
 {
-  FrequencyRotaryState= FrequencyRotary.rotate();
-  if (FrequencyRotaryState != 0)
+  //Controlla lo stato del bottone di cambio GlobalMode
+  if(digitalRead(PushGlobalMode)==LOW)
   {
-    if (HIGH == digitalRead(FERotaryButton))
-    //Se il rotore dell'encoder della frquenza NON è premuto ed è stato ruotato gestisce la frequenza
+    delay(200);
+    if(digitalRead(PushGlobalMode)==LOW)
     {
-      CheckRotaryFrequency();
+      GlobalMode++;
+      //Controlla il fuori scala superiore
+      if (GlobalMode>=GlobalModeNumber)
+      {
+        GlobalMode = 0;
+      }
+      GlobalModeDisplay();
+      while(digitalRead(PushGlobalMode)==LOW)
+      {
+        Serial.print("Aspetto che rilasci");
+      }
     }
-    else
-    {
-      CheckRotaryFrequencyStep();
-    }    
   }
-
-  ModeRotaryState = ModeRotary.rotate();
-  if (ModeRotaryState != 0)
+  else
   {
-    if (HIGH == digitalRead(MERotaryButton))
+    FrequencyRotaryState= FrequencyRotary.rotate();
+    if (FrequencyRotaryState != 0)
     {
-      Serial.println("Mode");
-      CheckRotaryMode();
+      if (HIGH == digitalRead(FERotaryButton))
+      //Se il rotore dell'encoder della frquenza NON è premuto ed è stato ruotato gestisce la frequenza
+      {
+        CheckRotaryFrequency();
+      }
+      else
+      {
+        CheckRotaryFrequencyStep();
+      }    
     }
-    else
+  
+    ModeRotaryState = ModeRotary.rotate();
+    if (ModeRotaryState != 0)
     {
-      Serial.println("Global");
-      CheckRotaryGlobalMode();
+      if (HIGH == digitalRead(MERotaryButton))
+      {
+        Serial.println("Mode");
+        CheckRotaryMode();
+      }
+      else
+      {
+        Serial.println("Global");
+        CheckRotaryGlobalMode();
+      }
     }
   }
 }
@@ -567,14 +603,29 @@ void CheckRotaryFrequency()
 {
   //Modifica il valore della frequenza
   //Ruota in senso orario -> Aumenta la frequenza
-  if ( FrequencyRotaryState== 1 ) 
+  if(GlobalMode == 2)
   {
-    Frequency[CurrentGenerator] += pow(10,FrequencyRotaryStep[CurrentGenerator]);
+    if ( FrequencyRotaryState== 1 ) 
+    {
+      Frequency[0] += pow(10,FrequencyRotaryStep[0]);
+    }
+    //Ruota in senso antiorario -> Diminuisce la frequenza
+    if ( FrequencyRotaryState== 2 ) 
+    {
+      Frequency[0] -= pow(10,FrequencyRotaryStep[0]);
+    }
   }
-  //Ruota in senso antiorario -> Diminuisce la frequenza
-  if ( FrequencyRotaryState== 2 ) 
+  else
   {
-    Frequency[CurrentGenerator] -= pow(10,FrequencyRotaryStep[CurrentGenerator]);
+    if ( FrequencyRotaryState== 1 ) 
+    {
+      Frequency[CurrentGenerator] += pow(10,FrequencyRotaryStep[CurrentGenerator]);
+    }
+    //Ruota in senso antiorario -> Diminuisce la frequenza
+    if ( FrequencyRotaryState== 2 ) 
+    {
+      Frequency[CurrentGenerator] -= pow(10,FrequencyRotaryStep[CurrentGenerator]);
+    }
   }
   //Fa il controllo del fuori scala (differenziato in funzione della modalità di funzionamento)
   switch (GlobalMode)
@@ -592,7 +643,7 @@ void CheckRotaryFrequency()
         Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
       }
       //Setta frequenza e forma d'onda
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
       break;
     case 1:
       //Controlla il fuori scala rispetto al limite superiore per forma d'onda e inferiore per F0+1
@@ -614,6 +665,36 @@ void CheckRotaryFrequency()
         SweepTStep= 1/FSweepStep;
         FSweepStep=(Frequency[1]-Frequency[0])/(SweepTime/SweepTStep);
       }
+      break;
+    case 2:
+      //F1
+      //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
+      //Controlla il fuori scala inferiore
+      if (Frequency[0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
+      {
+        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+      }
+      //Controlla il fuori scala superiore
+      if (Frequency[0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      {
+        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
+      }
+      //F2
+      //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
+      //Controlla il fuori scala inferiore
+      if (Frequency[0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
+      {
+        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+      }
+      //Controlla il fuori scala superiore
+      if (Frequency[0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      {
+        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
+      }
+      //Setta frequenza e forma d'onda F1
+      AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
+      //Setta frequenza e forma d'onda
+      AD9833FreqSet(Frequency[1],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
       break;
     default:
       break;
@@ -663,16 +744,10 @@ void CheckRotaryGlobalMode()
 
 void CheckRotaryMode()
 {
-  // 0 = not turning, 1 = CW, 2 = CCW
-//  ModeRotaryState = ModeRotary.rotate();
-  
-  //Se non è stato girato salta tutto
-//  if ( ModeRotaryState != 0 )
-//  {
     switch (GlobalMode)
     {
       case 0:
-        Serial.println("Global 0 Wave");
+//        Serial.println("Global 0 Wave");
         //Ruota in senso orario -> Aumenta il parametro del modo corrente
         if ( ModeRotaryState == 1 ) 
         {
@@ -701,12 +776,12 @@ void CheckRotaryMode()
         //Setta frequenza e forma d'onda
         DrawModeGraph(FrequencyWaveCurrentType[0]);
     
-        AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]]);
+        AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
         //Aggiorna il display
         DisplayFrenquency();
         break;
       case 1:
-        Serial.println("Global 1 Sweep time");
+//        Serial.println("Global 1 Sweep time");
         //Ruota in senso orario -> Aumenta il parametro del modo corrente
         if ( ModeRotaryState == 1 ) 
         {
@@ -733,10 +808,42 @@ void CheckRotaryMode()
         DrawSweepTime(10,60);
         
         break;
+      case 2:
+        //Ruota in senso orario -> Aumenta il parametro del modo corrente
+        if ( ModeRotaryState == 1 ) 
+        {
+          Frequency[1]++;
+        }
+
+        //Ruota in senso antiorario -> Diminuisce la frequenza
+        if ( ModeRotaryState == 2 ) 
+        {
+          Frequency[1]--;
+        }
+  
+
+        //Controlla il fuori scala superiore
+        if (Frequency[1]>=FrequencyLimit[FrequencyWaveCurrentType[1]][1])
+        {
+          Frequency[1] = FrequencyLimit[FrequencyWaveCurrentType[1]][0];
+        }
+
+        //Controlla il fuori scala inferiore
+        if (Frequency[1]<FrequencyLimit[FrequencyWaveCurrentType[1]][0])
+        {
+          Frequency[1] = FrequencyLimit[FrequencyWaveCurrentType[1]][1];
+        }
+
+        //Setta frequenza e forma d'onda
+//        DrawModeGraph(FrequencyWaveCurrentType[1]);
+    
+        AD9833FreqSet(Frequency[1],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
+        //Aggiorna il display
+        DisplayFrenquency();
+        break;
       default:
         break;
     }
-//  }
 }
 
 
@@ -788,12 +895,22 @@ void AD9833WriteRegister(int dat)
 // AD9833freqSet
 //    set the AD9833 frequency regs 
 //-----------------------------------------------------------------------------
-void AD9833FreqSet(long frequency, int wave) 
+void AD9833FreqSet(long frequency, int wave, uint8_t NumGen) 
 {
-  long fl = frequency * (0x10000000 / 25000000.0);
-  AD9833WriteRegister(0x2000 | wave);
-  AD9833WriteRegister((int)(fl & 0x3FFF) | 0x4000);
-  AD9833WriteRegister((int)((fl & 0xFFFC000) >> 14) | 0x4000);
+  if(NumGen==0)
+  {
+    long fl = frequency * (0x10000000 / 25000000.0);
+    AD9833WriteRegister(0x2000 | wave);
+    AD9833WriteRegister((int)(fl & 0x3FFF) | 0x4000);
+    AD9833WriteRegister((int)((fl & 0xFFFC000) >> 14) | 0x4000);    
+  }
+  else
+  {
+    long fl = frequency * (0x10000000 / 25000000.0);
+    AD9833WriteRegister(0x2000 | wave);
+    AD9833WriteRegister((int)(fl & 0x3FFF) | 0x8000);
+    AD9833WriteRegister((int)((fl & 0xFFFC000) >> 14) | 0x8000);
+  }
 }
 
 
@@ -1068,7 +1185,7 @@ void GlobalModeDisplay()
       //Display frequenza 2 spento
       Frequency2Display.clear();
       //Setta la frequenza minima per la forma d'onda corrente
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
       DisplayFrenquency();
 
       break;
@@ -1079,7 +1196,7 @@ void GlobalModeDisplay()
       //Simula il calcolo della prossima frequenza
       Frequency[CurrentGenerator]=Frequency[CurrentGenerator]+0;
       //Simula l'aggiornamento del generatore
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
       SweepTStep=(micros()-SweepTStep)/1000.0;
       DisplayFrenquency();
       delay(10);
@@ -1097,6 +1214,17 @@ void GlobalModeDisplay()
       DisplayFrenquency();
       //Inizializza TZero per la misurazione del tempo di sweep
       TZero=millis();
+      break;
+    case 2:
+    //Generazione con modulazione fra F1 e F2
+      //Freccia verde e lettera 1 sul display 1
+      DrawArrowFDisplay(3,1);
+      //Freccia verde e lettera 2 sul display 2
+      DrawArrowFDisplay(4,2);
+      //Forma d'onda per il display 1
+      DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
+      Frequency[1]= FrequencyLimit[FrequencyWaveCurrentType[1]][1];
+      DisplayFrenquency();
       break;
     default:
       break;
