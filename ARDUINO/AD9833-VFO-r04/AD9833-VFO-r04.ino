@@ -84,6 +84,8 @@ String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
                                           "Modulation"};
 
 uint16_t SweepTime=1; 
+int8_t SweepTimeStep=0;
+
 //Ultimo marcher temporale fissato (in microsecondi)
 float TZero;
 float TXs;
@@ -140,6 +142,8 @@ const uint8_t F2Hello[8] PROGMEM = {B00000000,
 #define TFT_DC      5  // define data/command pin
 #define TFT_RST     6  // define reset pin, or set to -1 and connect to Arduino RESET pin
 
+char SweepTimeBuff[9];
+
 // Initialize Adafruit ST7735 TFT library
 //Usa la SPI nativa. In questa configurazione hardware crea problemi la convivenza dei
 //diversi driver per cui ho adottato la SPI software, più lenta ma compatibile
@@ -184,6 +188,7 @@ char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
 #define PushGlobalMode 16
 #define Push1 17
 #define Push2 18
+#define AntiounceDelay 200
 
 //#=================================================================================
 // Serial
@@ -492,10 +497,11 @@ void loop()
 
 void CheckControllPanel()
 {
-  //Controlla lo stato del bottone di cambio GlobalMode
+  //Controlla lo stato del bottone di cambio GlobalMode e se non è premuto passa avanti
   if(digitalRead(PushGlobalMode)==LOW)
   {
-    delay(200);
+    //Antiounce
+    delay(AntiounceDelay);
     if(digitalRead(PushGlobalMode)==LOW)
     {
       GlobalMode++;
@@ -504,10 +510,12 @@ void CheckControllPanel()
       {
         GlobalMode = 0;
       }
+      //Aggiorna il display
       GlobalModeDisplay();
+      //Aspetta il rilascio del pulsante
       while(digitalRead(PushGlobalMode)==LOW)
       {
-        Serial.print("Aspetto che rilasci");
+        //Serial.print("Aspetto che rilasci");
       }
     }
   }
@@ -537,8 +545,7 @@ void CheckControllPanel()
       }
       else
       {
-        Serial.println("Global");
-        CheckRotaryGlobalMode();
+        CheckRotaryModeStep();        
       }
     }
   }
@@ -703,41 +710,34 @@ void CheckRotaryFrequency()
   DisplayFrenquency();
 }
 
-void CheckRotaryGlobalMode()
+void CheckRotaryModeStep()
 {
+  DrawSweepTime(10,60,8*(pow(10,SweepTimeStep)));
+  delay(10);
   while (digitalRead(MERotaryButton) == LOW)
   {
-    // 0 = not turning, 1 = CW, 2 = CCW
-    ModeRotaryState = ModeRotary.rotate();
-  
-    //Se non è stato girato salta tutto
-    if ( ModeRotaryState != 0 )
+    ModeRotaryState= ModeRotary.rotate();
+// 0 = not turning, 1 = CW, 2 = CCW
+    if ( ModeRotaryState== 1 ) 
     {
-      //Ruota in senso orario -> Aumenta il parametro del modo corrente
-      if ( ModeRotaryState == 1 ) 
-      {
-        GlobalMode++;
-      }
-
-      //Ruota in senso antiorario -> Diminuisce la frequenza
-      if ( ModeRotaryState == 2 ) 
-      {
-        GlobalMode--;
-      }
-  
-
-      //Controlla il fuori scala superiore
-      if (GlobalMode>=GlobalModeNumber)
-      {
-        GlobalMode = 0;
-      }
-
-      //Controlla il fuori scala inferiore
-      if (GlobalMode<0)
-      {
-        GlobalMode = GlobalModeNumber-1;
-      }
-      GlobalModeDisplay();
+       SweepTimeStep++;
+    }
+    if ( ModeRotaryState== 2 ) 
+    {
+      SweepTimeStep--;
+    }  
+    //Controlla i fuori scala
+    if(SweepTimeStep<0)
+    {
+      SweepTimeStep=4;
+    }
+    if(SweepTimeStep>4)
+    {
+      SweepTimeStep=0;
+    }
+    if(ModeRotaryState!=0)
+    {
+      DrawSweepTime(10,60,8*(pow(10,SweepTimeStep)));
     }
   }
 }
@@ -785,13 +785,13 @@ void CheckRotaryMode()
         //Ruota in senso orario -> Aumenta il parametro del modo corrente
         if ( ModeRotaryState == 1 ) 
         {
-          SweepTime++;
+          SweepTime+=pow(10,SweepTimeStep);
         }
 
         //Ruota in senso antiorario -> Diminuisce la frequenza
         if ( ModeRotaryState == 2 ) 
         {
-          SweepTime--;
+          SweepTime-=pow(10,SweepTimeStep);
         }
   
         //Controlla il fuori scala superiore
@@ -805,7 +805,7 @@ void CheckRotaryMode()
         {
           SweepTime = 65500;
         }
-        DrawSweepTime(10,60);
+        DrawSweepTime(10,60, SweepTime);
         
         break;
       case 2:
@@ -939,21 +939,24 @@ void tftHello()
 {
   tft.setTextWrap(false);
   tft.fillScreen(ST77XX_BLACK);
-  tft.setCursor(30, 10);
+  tft.setCursor(30, 5);
   tft.setTextColor(ST77XX_GREEN);
   tft.setTextSize(4);
   tft.println(Modello);
-  tft.setCursor(40, 50);
+  tft.setCursor(40, 45);
   tft.setTextColor(ST77XX_YELLOW);
   tft.setTextSize(3);
   tft.println(Modello1);
-  tft.setCursor(15, 80);
+  tft.setCursor(15, 75);
   tft.println(Modello2);
-  tft.setCursor(15, 110);
+////  tft.setCursor(15, 105);
+  tft.setCursor(30, 105);
   tft.setTextSize(2);
-  tft.println("SaLe 2020");
+  tft.print("SaLe");
+  tft.setCursor(5, 120);
+  tft.println("DarioMAS");
   tft.setTextSize(1);
-  tft.println();
+//  tft.println();
   tft.print("Hardware Ver.");
   tft.println(Hardware);
   tft.print("Software Ver.");
@@ -1206,7 +1209,7 @@ void GlobalModeDisplay()
       DrawArrowFDisplay(4,4);
       //Forma d'onda per il display 1
       DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
-      DrawSweepTime(10,60);
+      DrawSweepTime(10,60, SweepTime);
       CurrentGenerator = 1;
       //Inizializza la seconda frequenza (quella di arrivo)
       Frequency[1] = Frequency[0]+1;
@@ -1231,7 +1234,7 @@ void GlobalModeDisplay()
   }
 }
 
-void DrawSweepTime(uint8_t Xx,uint8_t Yy)
+void DrawSweepTime(uint8_t Xx,uint8_t Yy, uint16_t SweepTimeX)
 {
   //Cancella il simbolo precedente
   tft.fillRect(Xx,Yy-1,80, 15, ST77XX_BLACK);
@@ -1241,10 +1244,13 @@ void DrawSweepTime(uint8_t Xx,uint8_t Yy)
   tft.setTextSize(2);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(Xx,Yy);
-  tft.print(SweepTime);
-  tft.print("mS");  
-  tft.setTextSize(1);
-  tft.setCursor(Xx,Yy+15);
-  tft.print(SweepTStep,3);
-  tft.print(" Delta T min");
+  //Converte in formato fisso SweepTime
+  sprintf(SweepTimeBuff, "%05u mS", SweepTimeX);
+  //Presenta su tft il tempo di sweep in formato fisso
+  tft.print(SweepTimeBuff);
+//  tft.print("mS");  
+//  tft.setTextSize(1);
+//  tft.setCursor(Xx,Yy+15);
+//  tft.print(SweepTStep,3);
+//  tft.print(" Delta T min");
 }
