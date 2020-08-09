@@ -24,7 +24,9 @@
 #include <MD_AD9833.h>
 #include <SimpleRotary.h>
 //#include <math.h>
-#include "DigitLedDisplay.h"
+//#include "DigitLedDisplay.h"
+#include "DigitLed72xx.h"
+//#include "DigitLed72xx.ino"
 //#include <EEPROM.h>
 
 //#=================================================================================
@@ -46,6 +48,8 @@ const int wSquare   = 0b0000000000101000;
 //Frequenza corrente per i due generatori
 float Frequency[2];
 //Generatore corrente
+//Il generatore utilizzato è sempre lo 0
+//Questo parametro verrà cambiato all'introduzione del secondo chip di sintesi (generatore)
 uint8_t  CurrentGenerator=0;
 
 #define WaveTypeNumber 3
@@ -77,13 +81,17 @@ uint32_t FrequencyLimit[WaveTypeNumber][2] = {  1,  5000000,
      // Attivo display 1 e 2
 // 2 -> Usa entrambe i generatori e li mixa
 
-#define GlobalModeNumber 3
+#define GlobalModeNumber 5
 #define GlobalModeFixFrequency 0
-#define GlobalModeSweep 1
-#define GlobalModeModulation 2
+#define GlobalModeSweepLtH 1
+#define GlobalModeSweepHtL 2
+#define GlobalModeSweepLtHtL 3
+#define GlobalModeModulation 4
 int8_t GlobalMode = GlobalModeFixFrequency;
 String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
-                                          "Sweep",
+                                          "Sweep F1 > F2",
+                                          "Sweep F1 < F2",
+                                          "Sweep F1 >< F2",
                                           "Modulation"};
 
 uint16_t SweepTime=1; 
@@ -99,34 +107,32 @@ float SweepCurrentFrequency;
 //#=================================================================================
 // MAX7219 IC area
 //7 Segmenti per 8 digit - Display Frequenza
+//I display collegati e gestiti sono 2 da 8 digit l'uno
 //#=================================================================================
+#define DisplayNumber 2
+#define FirstDigitDisplay0 1
+#define FirstDigitDisplay1 9
+
+byte FirstDigit[DisplayNumber] = {FirstDigitDisplay0,
+                                  FirstDigitDisplay1};
+
 #define FDisplayNumDigit 8
 #define MAX7219CS    2
-#define MAX7219CLK  13
-#define MAX7219Data 11
+//#define MAX7219CLK  13
+//#define MAX7219Data 11
 
-DigitLedDisplay FrequencyDisplay = DigitLedDisplay(MAX7219Data, MAX7219CS, MAX7219CLK);
+DigitLed72xx FrequencyDisplay = DigitLed72xx(MAX7219CS, DisplayNumber);
 
-//Frase di apertura "ddS FG"
-const uint8_t FHello[8] PROGMEM =  {B00000000,
+//Frase di apertura "ddS FG" - "Fiu"
+const uint8_t FHello[16] PROGMEM =  {B00000000,
                                     B01011110,
                                     B01000111,
                                     B00000000,
                                     B01011011,
                                     B00111101,
                                     B00111101,
-                                    B00000000}; 
-
-//#=================================================================================
-// MAX7219 IC area
-//7 Segmenti per 8 digit - Display Frequenza 2
-//#=================================================================================
-#define MAX7219CS2 3
-
-DigitLedDisplay Frequency2Display = DigitLedDisplay(MAX7219Data, MAX7219CS2, MAX7219CLK);
-
-//Frase di apertura "Fiu"
-const uint8_t F2Hello[8] PROGMEM = {B00000000,
+                                    B00000000,
+                                    B00000000,
                                     B00000000,
                                     B00011100,
                                     B00000100,
@@ -134,6 +140,10 @@ const uint8_t F2Hello[8] PROGMEM = {B00000000,
                                     B00000000,
                                     B00000000,
                                     B00000000}; 
+
+#define MAX7219CS2 3
+
+
 
 
 //#=================================================================================
@@ -192,7 +202,7 @@ char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
 #define PushGlobalMode 16
 #define Push1 17
 #define Push2 18
-#define AntiounceDelay 200
+#define AntiBounceDelay 200
 
 //#=================================================================================
 // Serial
@@ -215,6 +225,8 @@ const char OPT_2 = '2';
 const char OPT_MODULATE = 'M';
 const uint8_t PACKET_SIZE = 20;
 
+
+
 //#=================================================================================
 // Setup
 //#=================================================================================
@@ -235,23 +247,23 @@ void setup()
 
   tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
 
-  /* Set the brightness min:1, max:15 */
+  /* Set the number of digit; brightness min:1, max:15 
+     and clear display
+  */
   FrequencyDisplay.setDigitLimit(FDisplayNumDigit);
   FrequencyDisplay.setBright(10);
-  FrequencyDisplay.clear();
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.clear(1);
 
-  /* Set the brightness min:1, max:15 */
-  Frequency2Display.setDigitLimit(FDisplayNumDigit);
-  Frequency2Display.setBright(10);
-  Frequency2Display.clear();
-
+  //Manda il messaggio di benvenuto sui display sette segmenti
   SevenSegHello();
   // Use this initializer if using a 1.8" TFT screen:
   tftHello();
   
   delay(3000);
 
-  Frequency[CurrentGenerator] = FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0];
+  //Inizializza la frequenza del generatore 0 (AD9833)
+  Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
   
   AD.begin();
   AD9833reset();
@@ -306,7 +318,7 @@ void loop()
 //  
 //  if ((cp = readPacket()) != NULL)
 //    processPacket(cp);
-  if (GlobalMode==GlobalModeSweep)
+  if (GlobalMode==GlobalModeSweepLtH)
   {
     //Se è finito il tempo di sweep, azzera i parametri e inizia una nuova rampa
     if (millis()-TZero>SweepTime)
@@ -346,7 +358,7 @@ void CheckControllPanel()
   if(digitalRead(PushGlobalMode)==LOW)
   {
     //Antiounce
-    delay(AntiounceDelay);
+    delay(AntiBounceDelay);
     if(digitalRead(PushGlobalMode)==LOW)
     {
       GlobalMode++;
@@ -409,38 +421,38 @@ void CheckControllPanel()
 //#=================================================================================
 void CheckRotaryFrequencyStep()
 {
-  if (CurrentGenerator == 0)
-  //controlla se il generatore corrente è il primo
-  {
-    FrequencyDisplay.clear();//Pulisce il primo display a 7 segmenti
-    //Presenta il carattere che indica la cifra di incremento del valore
-    FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B01100011);
-    delay(10);//Antibounce
-  
-    while (digitalRead(FERotaryButton) == LOW)
-    //Fin quando la manopola rimane premuta
-   {
-      FrequencyRotaryStep[0]=CheckRotaryFrequencyStepRotate(FrequencyRotaryStep[0]);
-      FrequencyDisplay.clear();
-      FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B01100011);
-    }
+//  if (CurrentGenerator == 0)
+//  //controlla se il generatore corrente è il primo
+//  {
+  FrequencyDisplay.clear(CurrentGenerator);//Pulisce il primo display a 7 segmenti
+  //Presenta il carattere che indica la cifra di incremento del valore
+  FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B01100011);
+  delay(10);//Antibounce
+
+  while (digitalRead(FERotaryButton) == LOW)
+  //Fin quando la manopola rimane premuta
+ {
+    FrequencyRotaryStep[CurrentGenerator]=CheckRotaryFrequencyStepRotate(FrequencyRotaryStep[CurrentGenerator]);
+    FrequencyDisplay.clear(CurrentGenerator);
+    FrequencyDisplay.write(FrequencyRotaryStep[CurrentGenerator]+1,B01100011);
   }
-  else
-  //Se il generatore non è il primo
-  {
-    Frequency2Display.clear();//Pulisce il secondo display a 7 segmenti
-    //Presenta il carattere che indica la cifra di incremento del valore
-    Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);
-    delay(10);//Antibounce
-  
-    while (digitalRead(FERotaryButton) == LOW)
-    //Fin quando la manopola rimane premuta
-    {
-      FrequencyRotaryStep[1]=CheckRotaryFrequencyStepRotate(FrequencyRotaryStep[1]);
-      Frequency2Display.clear();
-      Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);
-    }
-  }
+//  }
+//  else
+//  //Se il generatore non è il primo
+//  {
+//    //Frequency2Display.clear();//Pulisce il secondo display a 7 segmenti
+//    //Presenta il carattere che indica la cifra di incremento del valore
+//    //Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);
+//    delay(10);//Antibounce
+//  
+//    while (digitalRead(FERotaryButton) == LOW)
+//    //Fin quando la manopola rimane premuta
+//    {
+//      FrequencyRotaryStep[1]=CheckRotaryFrequencyStepRotate(FrequencyRotaryStep[1]);
+//      //Frequency2Display.clear();
+//      //Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);
+//    }
+//  }
 }
 
 //#=================================================================================
@@ -524,7 +536,7 @@ void CheckRotaryFrequency()
       //Setta frequenza e forma d'onda
       AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
       break;
-    case GlobalModeSweep:
+    case GlobalModeSweepLtH:
       //Controlla il fuori scala rispetto al limite superiore per forma d'onda e inferiore per F0+1
       //Controlla il fuori scala inferiore
       if (Frequency[1]<Frequency[0]+1)
@@ -579,7 +591,7 @@ void CheckRotaryFrequency()
       break;
   }
   //Aggiorna il display
-  DisplayFrenquency();
+  DisplayFrenquency(CurrentGenerator);
 }
 
 void CheckRotaryModeStep()
@@ -650,9 +662,9 @@ void CheckRotaryMode()
     
         AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
         //Aggiorna il display
-        DisplayFrenquency();
+        DisplayFrenquency(CurrentGenerator);
         break;
-      case GlobalModeSweep:
+      case GlobalModeSweepLtH:
 //        Serial.println("Global 1 Sweep time");
         //Ruota in senso orario -> Aumenta il parametro del modo corrente
         if ( ModeRotaryState == 1 ) 
@@ -711,27 +723,26 @@ void CheckRotaryMode()
     
         AD9833FreqSet(Frequency[1],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
         //Aggiorna il display
-        DisplayFrenquency();
+        DisplayFrenquency(CurrentGenerator);
         break;
       default:
         break;
     }
 }
 
-
-void DisplayFrenquency()
+//#=================================================================================
+//#DisplayFrenquency(byte CurrentDisplay)
+//#
+//#Presenta la frequenza sul display CurrentDisplay
+//#Il display è composto da 2 (o più) unità da 8 cifre collegate in serie (8+8)
+//#il valore posto in CurrentDisplay permette di sapere da quale digit si deve
+//#iniziare a scrivere
+//#=================================================================================
+void DisplayFrenquency(byte CurrentDisplay)
 {
   //Stampa la frequenza corrente allineata a destra
-  if(CurrentGenerator==0)
-  {
-    FrequencyDisplay.clear();
-    FrequencyDisplay.printDigit(Frequency[0],0);
-  }
-  else
-  {
-    Frequency2Display.clear();
-    Frequency2Display.printDigit(Frequency[1],0);    
-  }
+    FrequencyDisplay.clear(CurrentDisplay);
+    FrequencyDisplay.printDigit(Frequency[0],FirstDigit[CurrentDisplay]);
 }
 
 
@@ -795,14 +806,13 @@ void AD9833FreqSet(long frequency, int wave, uint8_t NumGen)
 //-----------------------------------------------------------------------------
 void SevenSegHello()
 {
-  FrequencyDisplay.clear();
-  Frequency2Display.clear();
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.clear(1);
   for(uint8_t ii=0;ii<FDisplayNumDigit; ii++)
   {
-    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+ ii));    
-    Frequency2Display.write(ii+1,pgm_read_word_near(F2Hello+ ii));        
+    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+ ii),0);    
+    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+ (ii+8)),0);        
   }
-
 }
 
 
@@ -1061,13 +1071,13 @@ void GlobalModeDisplay()
       DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       CurrentGenerator = 0;
       //Display frequenza 2 spento
-      Frequency2Display.clear();
+      //Frequency2Display.clear();
       //Setta la frequenza minima per la forma d'onda corrente
       AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
-      DisplayFrenquency();
+      DisplayFrenquency(CurrentGenerator);
 
       break;
-    case GlobalModeSweep:
+    case GlobalModeSweepLtH:
     //Generazione sweep fra frequenza 1 e frequenza 2
       //Calcola il tempo necessario ad impostare la frequenza
       SweepTStep=micros();
@@ -1076,7 +1086,7 @@ void GlobalModeDisplay()
       //Simula l'aggiornamento del generatore
       AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
       SweepTStep=(micros()-SweepTStep)/1000.0;
-      DisplayFrenquency();
+      DisplayFrenquency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
       DrawArrowFDisplay(1,3);
@@ -1089,7 +1099,7 @@ void GlobalModeDisplay()
       //Inizializza la seconda frequenza (quella di arrivo)
       Frequency[1] = Frequency[0]+1;
       //Display frequenza 2
-      DisplayFrenquency();
+      DisplayFrenquency(1);
       //Inizializza TZero per la misurazione del tempo di sweep
       TZero=millis();
       break;
@@ -1102,7 +1112,7 @@ void GlobalModeDisplay()
       //Forma d'onda per il display 1
       DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       Frequency[1]= FrequencyLimit[FrequencyWaveCurrentType[1]][1];
-      DisplayFrenquency();
+      DisplayFrenquency(1);
       break;
     default:
       break;
