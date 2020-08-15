@@ -15,18 +15,18 @@
 #define Modello  "Fiu"
 #define Modello1 "VFO"
 #define Modello2 "FG DDS"
-#define Hardware 1
-#define Software 4
+#define Hardware 2
+#define Software 5
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
 #include <SPI.h>             // Arduino SPI library
 #include <MD_AD9833.h>
 #include <SimpleRotary.h>
-//#include <math.h>
-//#include "DigitLedDisplay.h"
-#include "DigitLed72xx.h"
-//#include "DigitLed72xx.ino"
+
+//IMPORTANT
+//Use the last version of this libraries
+#include <DigitLed72xx.h>
 //#include <EEPROM.h>
 
 //#=================================================================================
@@ -37,6 +37,7 @@
 #define AD9833CLK   13  ///< SPI Clock pin number
 #define AD9833FSYNC 12  ///< SPI Load pin number (FSYNC in AD9833 usage)
 
+//Generatore 0 Bassa Frequenza (1Hz to 12.5MHz)
 //MD_AD9833  AD(FSYNC); // Hardware SPI
 MD_AD9833 AD(AD9833DATA, AD9833CLK, AD9833FSYNC); // Arbitrary SPI pins
 MD_AD9833::channel_t chan;
@@ -45,17 +46,31 @@ const int wSine     = 0b0000000000000000;
 const int wTriangle = 0b0000000000000010;
 const int wSquare   = 0b0000000000101000;
 
-//Frequenza corrente per i due generatori
-float Frequency[2];
+//Frequenza per i due generatori
+//La 0 è la frequenza di generazione in Fixed Mode e la L in Sweep
+//La 1 è la frequenza H in Sweep Mode
+//La 2 è la frequenza corrente in Sweep Mode
+#define FreqL 0
+#define FreqH 1
+#define FreqNow 2
+
+float Frequency[3][2] = {1,1,1,
+                        1,1,1};
+
 //Generatore corrente
 //Il generatore utilizzato è sempre lo 0
 //Questo parametro verrà cambiato all'introduzione del secondo chip di sintesi (generatore)
-uint8_t  CurrentGenerator=0;
+#define Generator0 0
+#define Generator1 1
+uint8_t  CurrentGenerator=Generator0;
 
 #define WaveTypeNumber 3
 
 //Tipo corrente della forma d'onda per ogni generatore
-int8_t  FrequencyWaveCurrentType[2] = {0,0};
+#define Sine 0
+#define Triangle 1
+#define Square 2
+int8_t  FrequencyWaveCurrentType[2] = {Sine,Sine};
 
 //Feasi per la selezione della forma d'onda nel generatore
 uint8_t  FrequencyWaveType[WaveTypeNumber] = {0b0000000000000000,
@@ -88,9 +103,9 @@ uint32_t FrequencyLimit[WaveTypeNumber][2] = {  1,  5000000,
 #define GlobalModeSweepLtHtL 3
 #define GlobalModeModulation 4
 int8_t GlobalMode = GlobalModeFixFrequency;
-String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency Out 1",
+String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
                                           "Sweep L > H",
-                                          "Sweep H < L",
+                                          "Sweep H > L",
                                           "Sweep L > H > L",
                                           "Modulation"};
 
@@ -110,11 +125,9 @@ float SweepCurrentFrequency;
 //I display collegati e gestiti sono 2 da 8 digit l'uno
 //#=================================================================================
 #define DisplayNumber 2
-#define FirstDigitDisplay0 0
+#define Digit4Display 8
 #define FirstDigitDisplay1 8
 
-byte FirstDigit[DisplayNumber] = {FirstDigitDisplay0,
-                                  FirstDigitDisplay1};
 
 #define FDisplayNumDigit 8
 #define MAX7219CS    2
@@ -126,31 +139,31 @@ byte FirstDigit[DisplayNumber] = {FirstDigitDisplay0,
 DigitLed72xx FrequencyDisplay = DigitLed72xx(MAX7219CS, DisplayNumber);
 
 //Frase di apertura "ddS FG" - "Fiu"
-const uint8_t FHello[16] PROGMEM =  {B01111111,//
-                                     B01111111,//
-                                     B01111111,// 
-                                     B01010101,//u
-                                     B01111111,//i
-                                     B00101010,//F
-                                     B01111111,//
-                                     B01111111,//
-                                     B01111111,
-                                     B01111111,
-                                     B01111111,
-                                     B01111111,
-                                     B01111111,
-                                     B01111111,
-                                     B01111111,
-                                     B01111111}; 
+const uint8_t FHello[16] PROGMEM = {B00000000,
+                                    B01011110,
+                                    B01000111,
+                                    B00000000,
+                                    B01011011,
+                                    B00111101,
+                                    B00111101,
+                                    B00000000,//
+                                    B00000000,
+                                    B00000000,
+                                    B00011100,
+                                    B00000100,
+                                    B01000111,
+                                    B00000000,
+                                    B00000000,
+                                    B00000000}; 
 
-#define MAX7219CS2 3
 
 
 
 
 //#=================================================================================
 // ST7735 - 1,8" OLED area
-//Display per forma d'onda, livello di uscita e altre funzioni
+//Display da 1.8" 128X160
+//per la rappresentazione di forma d'onda, livello di uscita e altre funzioni
 //#=================================================================================
 // ST7735 TFT module connections
 #define TFT_CS      4  // define chip select pin
@@ -160,13 +173,13 @@ const uint8_t FHello[16] PROGMEM =  {B01111111,//
 char SweepTimeBuff[9];
 
 // Initialize Adafruit ST7735 TFT library
-//Usa la SPI nativa. In questa configurazione hardware crea problemi la convivenza dei
-//diversi driver per cui ho adottato la SPI software, più lenta ma compatibile
+//Usa la SPI hardware. In questa configurazione hardware crea problemi la convivenza dei
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
-#define TFT_MOSI 11  // Data out
-#define TFT_SCLK 13  // Clock out
 
+//Usa la SPI software. In questa configurazione si risolvono molti dei problemi causati da conflitti sul canale SPI
+//#define TFT_MOSI 11  // Data out
+//#define TFT_SCLK 13  // Clock out
 // For ST7735-based displays, we will use this call
 //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
@@ -209,24 +222,7 @@ char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
 //#=================================================================================
 // Serial
 //#=================================================================================
-#define SerialSpeed 57600
- 
-// Character constants for commands
-const char CMD_HELP = '?';
-const char BLANK = ' ';
-const char PACKET_START = ':';
-const char PACKET_END = ';';
-const char CMD_FREQ = 'F';
-const char CMD_PHASE = 'P';
-const char CMD_OUTPUT = 'O';
-const char OPT_FREQ = 'F';
-const char OPT_PHASE = 'P';
-const char OPT_SIGNAL = 'S';
-const char OPT_1 = '1';
-const char OPT_2 = '2';
-const char OPT_MODULATE = 'M';
-const uint8_t PACKET_SIZE = 20;
-
+#define SerialSpeed 115200
 
 
 //#=================================================================================
@@ -234,84 +230,34 @@ const uint8_t PACKET_SIZE = 20;
 //#=================================================================================
 void setup()
 {
-  Serial.begin(SerialSpeed);
+  //Se serve attiva la serial
+  if(DebugLevel==1)
+  {
+    Serial.begin(SerialSpeed);    
+  }
 
-  pinMode(AD9833DATA, OUTPUT);
-  pinMode(AD9833CLK, OUTPUT);
-  pinMode(AD9833FSYNC, OUTPUT);
+  //Inizializza gli I7O digitali
+  SetupIO();
 
-  pinMode(FERotaryButton, INPUT_PULLUP);
-  pinMode(MERotaryButton, INPUT_PULLUP);
-
-  pinMode(PushGlobalMode, INPUT_PULLUP);
-  pinMode(Push1, INPUT_PULLUP);
-  pinMode(Push2, INPUT_PULLUP);
-
-  pinMode(MAX7219CS, OUTPUT);
-
-  digitalWrite(MAX7219CS3, HIGH);
-
-
-  tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
-
-  /* Set the number of digit; brightness min:1, max:15 
-     and clear display
-  */
-  FrequencyDisplay.on(10);
-  FrequencyDisplay.setBright(10,0);
-  FrequencyDisplay.setBright(10,1);
+  //Inizializza le variabili di stato
+  CurrentGenerator = Generator0;
+  FrequencyWaveCurrentType [CurrentGenerator] = Sine;
+  Frequency[FreqL][CurrentGenerator] = FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][CurrentGenerator];
 
   //Manda il messaggio di benvenuto sui display sette segmenti
   SevenSegHello();
+
   // Use this initializer if using a 1.8" TFT screen:
   tftHello();
-  
+  //lascia il tempo per leggere i messaggi di apertura
   delay(3000);
-
-  //Inizializza la frequenza del generatore 0 (AD9833)
-  Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
   
+  //Inizializza il genertore 0
   AD.begin();
   AD9833reset();
   GlobalModeDisplay();  
 }
 
-
-uint8_t htoi(char c)
-{
-  c = toupper(c);
-  
-  if (c >= '0' && c <= '9')
-      return(c - '0');
-  else if (c >= 'A' && c <= 'F')
-      return(c - 'A' + 10);
-  else
-      return(0);
-}
-
-char nextChar(void)
-// Read the next character from the serial input stream
-// Blocking wait
-{
-  //Controlla il pannello comandi
-  CheckControllPanel();
-  while (!Serial.available())
-  //Controlla la seriale in attesa di comandi
-  {
-    ; /* do nothing */
-    return(toupper(Serial.read()));
-  }
-}
-
-char *readPacket(void)
-// read a packet and return the 
-{
-}
-
-void processPacket(char *cp)
-// Assume we have a correctly formed packet from the pasing in readPacket()
-{
-}
 
 
 //#=================================================================================
@@ -330,7 +276,7 @@ void loop()
     if (millis()-TZero>SweepTime)
     {
       //Frequenza Iniziale
-      SweepCurrentFrequency=Frequency[0];
+      SweepCurrentFrequency=Frequency[0][0];
       //Azzera il contatore del tempo di Sweep
       TZero=millis();
       //Attualizza la frequenza
@@ -459,6 +405,7 @@ void CheckRotaryFrequencyStep()
 //      //Frequency2Display.write(FrequencyRotaryStep[1]+1,B01100011);
 //    }
 //  }
+  PrintFrequencyLimit(0);
 }
 
 //#=================================================================================
@@ -496,6 +443,7 @@ void CheckRotaryFrequency()
     {
       FrequencyRotaryStepHerz[i]*=10;
     }
+    
   }
 
   //Modifica il valore della frequenza
@@ -504,24 +452,24 @@ void CheckRotaryFrequency()
   {
     if ( FrequencyRotaryState== 1 ) 
     {
-      Frequency[0] += FrequencyRotaryStepHerz[0];
+      Frequency[0][0] += FrequencyRotaryStepHerz[0];
     }
     //Ruota in senso antiorario -> Diminuisce la frequenza
     if ( FrequencyRotaryState== 2 ) 
     {
-      Frequency[0] -= FrequencyRotaryStepHerz[0];
+      Frequency[0][0] -= FrequencyRotaryStepHerz[0];
     }
   }
   else
   {
     if ( FrequencyRotaryState== 1 ) 
     {
-      Frequency[CurrentGenerator] += FrequencyRotaryStepHerz[CurrentGenerator];
+      Frequency[CurrentGenerator][0] += FrequencyRotaryStepHerz[CurrentGenerator];
     }
     //Ruota in senso antiorario -> Diminuisce la frequenza
     if ( FrequencyRotaryState== 2 ) 
     {
-      Frequency[CurrentGenerator] -= FrequencyRotaryStepHerz[CurrentGenerator];
+      Frequency[CurrentGenerator][0] -= FrequencyRotaryStepHerz[CurrentGenerator];
     }
   }
   //Fa il controllo del fuori scala (differenziato in funzione della modalità di funzionamento)
@@ -530,74 +478,74 @@ void CheckRotaryFrequency()
     case GlobalModeFixFrequency:
       //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
       //Controlla il fuori scala inferiore
-      if (Frequency[0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
+      if (Frequency[0][0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
       {
-        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
       }
       //Controlla il fuori scala superiore
-      if (Frequency[0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      if (Frequency[0][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
       {
-        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
+        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
       }
       //Setta frequenza e forma d'onda
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
+      AD9833FreqSet(Frequency[CurrentGenerator][0],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
       break;
     case GlobalModeSweepLtH:
       //Controlla il fuori scala rispetto al limite superiore per forma d'onda e inferiore per F0+1
       //Controlla il fuori scala inferiore
-      if (Frequency[1]<Frequency[0]+1)
+      if (Frequency[1][0]<Frequency[0][0]+1)
       {
-        Frequency[1] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+        Frequency[1][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
       }
       //Controlla il fuori scala superiore
-      if (Frequency[1]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      if (Frequency[1][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
       {
-        Frequency[1] = Frequency[0]+1;
+        Frequency[1][0] = Frequency[0][0]+1;
       }
       //Ricalcola i parametri di sweep
       SweepTStep = 1;
-      FSweepStep=(Frequency[1]-Frequency[0])/(SweepTime/SweepTStep);
+      FSweepStep=(Frequency[1][0]-Frequency[0][0])/(SweepTime/SweepTStep);
       if (FSweepStep<1.0)
       {
         SweepTStep= 1/FSweepStep;
-        FSweepStep=(Frequency[1]-Frequency[0])/(SweepTime/SweepTStep);
+        FSweepStep=(Frequency[1][0]-Frequency[0][0])/(SweepTime/SweepTStep);
       }
       break;
     case GlobalModeModulation:
       //F1
       //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
       //Controlla il fuori scala inferiore
-      if (Frequency[0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
+      if (Frequency[0][0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
       {
-        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
       }
       //Controlla il fuori scala superiore
-      if (Frequency[0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      if (Frequency[0][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
       {
-        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
+        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
       }
       //F2
       //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
       //Controlla il fuori scala inferiore
-      if (Frequency[0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
+      if (Frequency[0][0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
       {
-        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
+        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
       }
       //Controlla il fuori scala superiore
-      if (Frequency[0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
+      if (Frequency[0][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
       {
-        Frequency[0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
+        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
       }
       //Setta frequenza e forma d'onda F1
-      AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
+      AD9833FreqSet(Frequency[0][0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
       //Setta frequenza e forma d'onda
-      AD9833FreqSet(Frequency[1],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
+      AD9833FreqSet(Frequency[1][0],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
       break;
     default:
       break;
   }
   //Aggiorna il display
-  DisplayFrenquency(CurrentGenerator);
+  DisplayFrequency(CurrentGenerator);
 }
 
 void CheckRotaryModeStep()
@@ -666,9 +614,9 @@ void CheckRotaryMode()
         //Setta frequenza e forma d'onda
         DrawModeGraph(FrequencyWaveCurrentType[0]);
     
-        AD9833FreqSet(Frequency[0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
+        AD9833FreqSet(Frequency[0][0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
         //Aggiorna il display
-        DisplayFrenquency(CurrentGenerator);
+        DisplayFrequency(CurrentGenerator);
         break;
       case GlobalModeSweepLtH:
 //        Serial.println("Global 1 Sweep time");
@@ -702,34 +650,34 @@ void CheckRotaryMode()
         //Ruota in senso orario -> Aumenta il parametro del modo corrente
         if ( ModeRotaryState == 1 ) 
         {
-          Frequency[1]++;
+          Frequency[1][0]++;
         }
 
         //Ruota in senso antiorario -> Diminuisce la frequenza
         if ( ModeRotaryState == 2 ) 
         {
-          Frequency[1]--;
+          Frequency[1][0]--;
         }
   
 
         //Controlla il fuori scala superiore
-        if (Frequency[1]>=FrequencyLimit[FrequencyWaveCurrentType[1]][1])
+        if (Frequency[1][0]>=FrequencyLimit[FrequencyWaveCurrentType[1]][1])
         {
-          Frequency[1] = FrequencyLimit[FrequencyWaveCurrentType[1]][0];
+          Frequency[1][0] = FrequencyLimit[FrequencyWaveCurrentType[1]][0];
         }
 
         //Controlla il fuori scala inferiore
-        if (Frequency[1]<FrequencyLimit[FrequencyWaveCurrentType[1]][0])
+        if (Frequency[1][0]<FrequencyLimit[FrequencyWaveCurrentType[1]][0])
         {
-          Frequency[1] = FrequencyLimit[FrequencyWaveCurrentType[1]][1];
+          Frequency[1][0] = FrequencyLimit[FrequencyWaveCurrentType[1]][1];
         }
 
         //Setta frequenza e forma d'onda
 //        DrawModeGraph(FrequencyWaveCurrentType[1]);
     
-        AD9833FreqSet(Frequency[1],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
+        AD9833FreqSet(Frequency[1][0],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
         //Aggiorna il display
-        DisplayFrenquency(CurrentGenerator);
+        DisplayFrequency(CurrentGenerator);
         break;
       default:
         break;
@@ -737,19 +685,19 @@ void CheckRotaryMode()
 }
 
 //#=================================================================================
-//#DisplayFrenquency(byte CurrentDisplay)
+//#DisplayFrequency(byte CurrentDisplay)
 //#
 //#Presenta la frequenza sul display CurrentDisplay
 //#Il display è composto da 2 (o più) unità da 8 cifre collegate in serie (8+8)
 //#il valore posto in CurrentDisplay permette di sapere da quale digit si deve
 //#iniziare a scrivere
 //#=================================================================================
-void DisplayFrenquency(byte CurrentDisplay)
+void DisplayFrequency(byte CurrentDisplay)
 {
   //Stampa la frequenza corrente allineata a destra
     FrequencyDisplay.clear(CurrentDisplay);
-//    FrequencyDisplay.printDigit(Frequency[0],FirstDigit[CurrentDisplay],CurrentDisplay);
-    FrequencyDisplay.printDigits(Frequency[0],CurrentDisplay);
+//    FrequencyDisplay.printDigit(Frequency[0][0],FirstDigit[CurrentDisplay],CurrentDisplay);
+    FrequencyDisplay.printDigit(Frequency[0][0],CurrentDisplay);
 }
 
 
@@ -813,18 +761,26 @@ void AD9833FreqSet(long frequency, int wave, uint8_t NumGen)
 //-----------------------------------------------------------------------------
 void SevenSegHello()
 {
-  FrequencyDisplay.clear(0);
-  FrequencyDisplay.printDigits(12245678,0);
-  FrequencyDisplay.clear(1);
-  FrequencyDisplay.printDigits(87754321,1);
-  delay(2000);
-  FrequencyDisplay.clear(0);
-  FrequencyDisplay.clear(1);
-  for(uint8_t ii=0;ii<FDisplayNumDigit; ii++)
-  {
-    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+ ii),0);   
+  /* Set the number of digit; brightness min:1, max:15 
+     and clear display
+  */
+  FrequencyDisplay.on(DisplayNumber);
+  FrequencyDisplay.setBright(10,0);
+  FrequencyDisplay.setBright(10,1);
 
-    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+ (ii+8)),1);        
+  FrequencyDisplay.setDigitLimit(Digit4Display,0);
+  FrequencyDisplay.setDigitLimit(Digit4Display,1);
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.printDigit(12245678,0);
+  FrequencyDisplay.clear(1);
+  FrequencyDisplay.printDigit(87754321,1);
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.clear(1);
+  
+  for(uint8_t ii=0;ii<Digit4Display; ii++)
+  {
+    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+ii),0);
+    FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+(Digit4Display+ii)),1);        
   }
 }
 
@@ -835,6 +791,8 @@ void SevenSegHello()
 //-----------------------------------------------------------------------------
 void tftHello() 
 {
+  tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
+  
   tft.setTextWrap(false);
   tft.fillScreen(ST77XX_BLACK);
   tft.setCursor(30, 5);
@@ -859,7 +817,6 @@ void tftHello()
   tft.println(Hardware);
   tft.print("Software Ver.");
   tft.println(Software);
-  tft.setTextColor(ST77XX_BLUE);
 }
 
 //-----------------------------------------------------------------------------
@@ -871,13 +828,13 @@ void DrawModeGraph(uint8_t Mode)
   switch (Mode)
   {
     case 0:
-      DrawSine(64, 32,64, 120);
+      DrawSine(39, 25,85, 110);
       break;
     case 1:
-      DrawTriangle(64, 32,64, 120);
+      DrawTriangle(39, 25,85, 110);
       break;
     case 2:
-      DrawSquare(64, 32,64, 120);
+      DrawSquare(39, 25,85, 110);
       break;
     default:
       break;
@@ -891,10 +848,8 @@ void DrawModeGraph(uint8_t Mode)
 void DrawSine(uint8_t Leng, float High,uint8_t Xx, uint8_t Yy)
 {
   //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
-  PrintFrequencyLimit(Leng, High,Xx, Yy);
+  PrintFrequencyLimit(0);
 
-  //Toglie lo spazio in basso per inserire i limiti di frequenza
-  High-=10;
   float AlfHigh = High/2;
   for (uint8_t xx=0;xx<Leng;xx++)
   {
@@ -913,10 +868,8 @@ void DrawSine(uint8_t Leng, float High,uint8_t Xx, uint8_t Yy)
 void DrawTriangle(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 {
   //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
-  PrintFrequencyLimit(Leng, High,Xx, Yy);
+  PrintFrequencyLimit(0);
 
-  //Toglie lo spazio in basso per inserire i limiti di frequenza
-  High-=10;
   for(uint8_t offset=0;offset<6;offset++)
   {
     tft.drawLine(           Xx+offset, Yy+High/2,     Xx+Leng/6+offset, Yy+High-1, ST77XX_GREEN);
@@ -933,10 +886,8 @@ void DrawTriangle(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 void DrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 {
   //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
-  PrintFrequencyLimit(Leng, High,Xx, Yy);
+  PrintFrequencyLimit(0);
 
-  //Toglie lo spazio in basso per inserire i limiti di frequenza
-  High-=10;
   for(uint8_t offset=0;offset<6;offset++)
   {
     tft.drawLine(         Xx+offset,        Yy,          Xx+offset,  Yy+High-1, ST77XX_GREEN);
@@ -953,17 +904,28 @@ void DrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 // PrintFrequencyLimit
 //    Draw on tft the Frequency limit for the wave sprite
 //-----------------------------------------------------------------------------
-void PrintFrequencyLimit(uint8_t Leng1, uint8_t High1,uint8_t Xx1, uint8_t Yy1)
+void PrintFrequencyLimit(uint8_t NumBlocco)
 {
   //Cancella il simbolo precedente
-  tft.fillRect(Xx1,Yy1,Leng1, High1, ST77XX_BLACK);
+  tft.fillRect(84,112,43, 27, ST77XX_BLACK);
   //Scrive i limiti di frequenza impostati
+  tft.fillRect(20,112, 58, 24, ST77XX_BLACK);
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(Xx1,Yy1+High1-8);
+  tft.setCursor(19,128);
+  tft.print("min ");
   tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
-  tft.print("Hz - ");
+  tft.setCursor(65,128);
+  tft.print("Hz");
+  tft.setCursor(19,119);
+  tft.print("Step ");
+  tft.print(int(FrequencyRotaryStepHerz[0]));
+  tft.setCursor(65,119);
+  tft.print("Hz");
+  tft.setCursor(19,110);
+  tft.print("MAX ");
   tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+  tft.setCursor(65,110);
   tft.print("MHz");
 }
 
@@ -978,7 +940,7 @@ void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
   {
     case 1:
     //Display 1 freccia ROSSA
-      tft.fillTriangle(0, 135, 10, 125, 10, 145, ST77XX_RED);
+      tft.fillTriangle(0, 120, 10, 110, 10, 130, ST77XX_RED);
       break;
     case 2:
     //Display 2 freccia ROSSA
@@ -986,7 +948,7 @@ void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
       break;
     case 3:
     //Display 1 freccia VERDE
-      tft.fillTriangle(0, 135, 10, 125, 10, 145, ST77XX_GREEN);
+      tft.fillTriangle(0, 120, 10, 110, 10, 130, ST77XX_GREEN);
       break;
     case 4:
     //Display 2 freccia VERDE
@@ -994,7 +956,7 @@ void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
       break;
     case 9:
     //Display 1 freccia NERA
-      tft.fillTriangle(0, 135, 10, 125, 10, 145, ST77XX_BLACK);
+      tft.fillTriangle(0, 120, 10, 110, 10, 130, ST77XX_BLACK);
       break;
     case 10:
     //Display 2 freccia NERA
@@ -1009,7 +971,7 @@ void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
   {
     case 1:
     //Scrive 1 
-      tft.setCursor(4,132);
+      tft.setCursor(4,117);
       tft.print("1");
       break;
     case 2:
@@ -1019,7 +981,7 @@ void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
       break;
     case 3:
     //Scrive L 
-      tft.setCursor(4,132);
+      tft.setCursor(4,117);
       tft.print("L");
       break;
     case 4:
@@ -1037,27 +999,6 @@ void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
 }
 
 
-
-void DrawSweepDisplay(uint8_t Color)
-{
-  switch (Color)
-  {
-    case 0:
-      tft.drawLine(10,135,13,135,ST77XX_BLACK);
-      tft.drawLine(13,135,13,25,ST77XX_BLACK);
-      tft.drawLine(10,25,13,25,ST77XX_BLACK);
-      break;
-    case 1:
-      tft.drawLine(10,135,13,135,ST77XX_RED);
-      tft.drawLine(13,135,13,25,ST77XX_RED);
-      tft.drawLine(10,25,13,25,ST77XX_RED);
-      break;
-    default:
-      break;
-  }
-}
-
-
 //-----------------------------------------------------------------------------
 // GlobalModeDisplay
 //    Preset the tft and the seven segment display for the current operating mode
@@ -1065,21 +1006,18 @@ void DrawSweepDisplay(uint8_t Color)
 //-----------------------------------------------------------------------------
 void GlobalModeDisplay()
 {
-  //Il comando seguente sembra ignorarlo probabilmente per problemi sul bis SPI
-  //Inizializza il display tft
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_WHITE);
-  tft.fillScreen(ST77XX_BLACK);
-  //Scrive la modalità sul TFT
-  tft.setCursor(0,0);
-  tft.print(GlobalModeLabel[GlobalMode]);
+  TftGraphInit();
+
   switch (GlobalMode)
   {
     case GlobalModeFixFrequency:
-      FrequencyDisplay.clear(1);
-      CurrentGenerator = 0;
-      delay(2000);
     //Generazione a frequenza fissa
+    //Pulisce i display 7 segmenti 0 e 1
+      FrequencyDisplay.clear(0);
+      FrequencyDisplay.clear(1);
+      //Fissa il generatore corrente a 0 (Generatore di bassa frequenza)
+      CurrentGenerator = 0;
+      FrequencyDisplay.printDigit(Frequency[GlobalModeFixFrequency][CurrentGenerator], 0);
       //Freccia verde e numero 1 sul display 1
       DrawArrowFDisplay(3,1);
       //Forma d'onda per il display 1
@@ -1087,8 +1025,8 @@ void GlobalModeDisplay()
       //Display frequenza 2 spento
       //Frequency2Display.clear();
       //Setta la frequenza minima per la forma d'onda corrente
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
-      DisplayFrenquency(CurrentGenerator);
+      AD9833FreqSet(Frequency[CurrentGenerator][0],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
+      DisplayFrequency(CurrentGenerator);
       break;
     case GlobalModeSweepLtH:
     //Generazione sweep fra frequenza 1 e frequenza 2
@@ -1096,11 +1034,11 @@ void GlobalModeDisplay()
       //Calcola il tempo necessario ad impostare la frequenza
       SweepTStep=micros();
       //Simula il calcolo della prossima frequenza
-      Frequency[CurrentGenerator]=Frequency[CurrentGenerator]+0;
+      Frequency[CurrentGenerator][0]=Frequency[CurrentGenerator][0]+0;
       //Simula l'aggiornamento del generatore
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
+      AD9833FreqSet(Frequency[CurrentGenerator][0],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
       SweepTStep=(micros()-SweepTStep)/1000.0;
-      DisplayFrenquency(CurrentGenerator);
+      DisplayFrequency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
       DrawArrowFDisplay(1,3);
@@ -1111,9 +1049,9 @@ void GlobalModeDisplay()
       DrawSweepTime(10,60, SweepTime);
       CurrentGenerator = 1;
       //Inizializza la seconda frequenza (quella di arrivo)
-      Frequency[1] = Frequency[0]+1;
+      Frequency[1][0] = Frequency[0][0]+1;
       //Display frequenza 2
-      DisplayFrenquency(1);
+      DisplayFrequency(1);
       //Inizializza TZero per la misurazione del tempo di sweep
       TZero=millis();
       break;
@@ -1122,11 +1060,11 @@ void GlobalModeDisplay()
       //Calcola il tempo necessario ad impostare la frequenza
       SweepTStep=micros();
       //Simula il calcolo della prossima frequenza
-      Frequency[CurrentGenerator]=Frequency[CurrentGenerator]+0;
+      Frequency[CurrentGenerator][0]=Frequency[CurrentGenerator][0]+0;
       //Simula l'aggiornamento del generatore
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
+      AD9833FreqSet(Frequency[CurrentGenerator][0],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
       SweepTStep=(micros()-SweepTStep)/1000.0;
-      DisplayFrenquency(CurrentGenerator);
+      DisplayFrequency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
       DrawArrowFDisplay(1,3);
@@ -1137,9 +1075,9 @@ void GlobalModeDisplay()
       DrawSweepTime(10,60, SweepTime);
       CurrentGenerator = 1;
       //Inizializza la seconda frequenza (quella di arrivo)
-      Frequency[1] = Frequency[0]+1;
+      Frequency[1][0] = Frequency[0][0]+1;
       //Display frequenza 2
-      DisplayFrenquency(1);
+      DisplayFrequency(1);
       //Inizializza TZero per la misurazione del tempo di sweep
       TZero=millis();
       break;
@@ -1148,11 +1086,11 @@ void GlobalModeDisplay()
       //Calcola il tempo necessario ad impostare la frequenza
       SweepTStep=micros();
       //Simula il calcolo della prossima frequenza
-      Frequency[CurrentGenerator]=Frequency[CurrentGenerator]+0;
+      Frequency[CurrentGenerator][0]=Frequency[CurrentGenerator][0]+0;
       //Simula l'aggiornamento del generatore
-      AD9833FreqSet(Frequency[CurrentGenerator],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
+      AD9833FreqSet(Frequency[CurrentGenerator][0],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],0);
       SweepTStep=(micros()-SweepTStep)/1000.0;
-      DisplayFrenquency(CurrentGenerator);
+      DisplayFrequency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
       DrawArrowFDisplay(1,3);
@@ -1163,9 +1101,9 @@ void GlobalModeDisplay()
       DrawSweepTime(10,60, SweepTime);
       CurrentGenerator = 1;
       //Inizializza la seconda frequenza (quella di arrivo)
-      Frequency[1] = Frequency[0]+1;
+      Frequency[1][0] = Frequency[0][0]+1;
       //Display frequenza 2
-      DisplayFrenquency(1);
+      DisplayFrequency(1);
       //Inizializza TZero per la misurazione del tempo di sweep
       TZero=millis();
       break;
@@ -1177,8 +1115,8 @@ void GlobalModeDisplay()
       DrawArrowFDisplay(4,2);
       //Forma d'onda per il display 1
       DrawModeGraph(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
-      Frequency[1]= FrequencyLimit[FrequencyWaveCurrentType[1]][1];
-      DisplayFrenquency(1);
+      Frequency[1][0]= FrequencyLimit[FrequencyWaveCurrentType[1]][1];
+      DisplayFrequency(1);
       break;
     default:
       break;
@@ -1204,4 +1142,49 @@ void DrawSweepTime(uint8_t Xx,uint8_t Yy, uint16_t SweepTimeX)
 //  tft.setCursor(Xx,Yy+15);
 //  tft.print(SweepTStep,3);
 //  tft.print(" Delta T min");
+}
+
+void TftGraphInit()
+{
+  //Inizializza il display tft
+  tft.setTextSize(1);
+//  tft.setTextColor(ST77XX_WHITE);
+  tft.fillScreen(ST77XX_BLACK);
+  tft.drawLine(0,12, 159,12,ST77XX_WHITE);//Delimitatore inferiore campo MODO
+  tft.drawRect(0,139,42,20,ST77XX_WHITE);//Funzione F1
+  tft.drawRect(42,139,43,20,ST77XX_WHITE);//Funzione F2
+  tft.drawRect(85,139,43,20,ST77XX_WHITE);//Funzione F3
+  tft.drawRect(15,106,68,33,ST77XX_WHITE);//Limiti di frequenza
+  tft.drawRect(83,106,45,33,ST77XX_WHITE);//Forma d'onda (Grafica)
+  //Scrive la modalità sul TFT
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(0,0);
+  tft.print(GlobalModeLabel[GlobalMode]);
+  tft.setCursor(18,141);
+  tft.print("F1");
+  tft.setCursor(12,151);
+  tft.print("Mode");
+  
+  tft.setCursor(57,141);
+  tft.print("F2");
+  
+  tft.setCursor(100,141);
+  tft.print("F3");  
+}
+
+
+void SetupIO()
+{
+  pinMode(AD9833DATA, OUTPUT);
+  pinMode(AD9833CLK, OUTPUT);
+  pinMode(AD9833FSYNC, OUTPUT);
+
+  pinMode(FERotaryButton, INPUT_PULLUP);
+  pinMode(MERotaryButton, INPUT_PULLUP);
+
+  pinMode(PushGlobalMode, INPUT_PULLUP);
+  pinMode(Push1, INPUT_PULLUP);
+  pinMode(Push2, INPUT_PULLUP);
+
+  pinMode(MAX7219CS, OUTPUT);
 }
