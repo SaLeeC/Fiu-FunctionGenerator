@@ -6,6 +6,10 @@
 		{
 			"name": "AD9833-VFO-r05",
 			"path": "AD9833-VFO-r05"
+		},
+		{
+			"name": "AD9833-VFO-r06",
+			"path": "AD9833-VFO-r06"
 		}
 	],
 	"settings": {}
