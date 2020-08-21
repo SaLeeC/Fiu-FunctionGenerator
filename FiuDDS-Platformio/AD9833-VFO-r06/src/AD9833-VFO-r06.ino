@@ -263,38 +263,6 @@ void setup()
 //#=================================================================================
 void loop()
 {
-  CheckControllPanel();
-//  char  *cp;
-//  
-//  if ((cp = readPacket()) != NULL)
-//    processPacket(cp);
-  if (GlobalMode==GlobalModeSweepLtH)
-  {
-    //Se è finito il tempo di sweep, azzera i parametri e inizia una nuova rampa
-    if (millis()-TZero>SweepTime)
-    {
-      //Frequenza Iniziale
-      SweepCurrentFrequency=Frequency[0][0];
-      //Azzera il contatore del tempo di Sweep
-      TZero=millis();
-      //Attualizza la frequenza
-      AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
-      //Mette il tempo per lo step corrente uguale al tempo di inizio
-      TXs=TZero;
-    }
-    else
-    {
-      //Se è trascorso il tempo di passo aggiorna la frequenza al prossimo passo
-      //e il tempo relativo per il prossimo passo
-      if (millis()-TXs>= SweepTStep)
-      {
-        SweepCurrentFrequency+=FSweepStep;
-        //Attualizza la frequenza
-        AD9833FreqSet(SweepCurrentFrequency, FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
-        TXs=millis();
-      }
-    }
-  }
 }
 
 //#=================================================================================
