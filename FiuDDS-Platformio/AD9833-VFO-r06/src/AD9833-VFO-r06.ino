@@ -258,6 +258,10 @@ void setup()
   TftGraphInit();
   TftFrequencyLimit(); 
   TftCurrentWave(0); 
+
+  TftPipCreate();
+  TftPipPrint("MHz",5002);
+  delay(3000);
 }
 
 
@@ -738,150 +742,8 @@ void SevenSegHello()
 }
 
 
-//-----------------------------------------------------------------------------
-// tftHello
-//    set TFT Hello Message 
-//-----------------------------------------------------------------------------
-void tftHello() 
-{
-  tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
-  
-  tft.setTextWrap(false);
-  tft.fillScreen(ST77XX_BLACK);
-  tft.setCursor(30, 5);
-  tft.setTextColor(ST77XX_GREEN);
-  tft.setTextSize(4);
-  tft.println(Modello);
-  tft.setCursor(40, 45);
-  tft.setTextColor(ST77XX_YELLOW);
-  tft.setTextSize(3);
-  tft.println(Modello1);
-  tft.setCursor(15, 75);
-  tft.println(Modello2);
-////  tft.setCursor(15, 105);
-  tft.setCursor(30, 105);
-  tft.setTextSize(2);
-  tft.print("SaLe");
-  tft.setCursor(5, 120);
-  tft.println("DarioMAS");
-  tft.setTextSize(1);
-//  tft.println();
-  tft.print("Hardware Ver.");
-  tft.println(Hardware);
-  tft.print("Software Ver.");
-  tft.println(Software);
-}
-
-//-----------------------------------------------------------------------------
-// TftCurrentWave
-//    Draw on tft the wave form and frequency limit
-//-----------------------------------------------------------------------------
-void TftCurrentWave(uint8_t Mode)
-{
-  switch (Mode)
-  {
-    case 0:
-      DrawSine(45, 25,77, 110);
-      break;
-    case 1:
-      DrawTriangle(45, 25,77, 110);
-      break;
-    case 2:
-      DrawSquare(45, 25,77, 110);
-      break;
-    default:
-      break;
-  }
-}
-
-//-----------------------------------------------------------------------------
-// DrawSine
-//    Draw on tft the Sine sprite
-//-----------------------------------------------------------------------------
-void DrawSine(uint8_t Leng, float High,uint8_t Xx, uint8_t Yy)
-{
-  //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
-  TftFrequencyLimit();
-
-  float AlfHigh = High/2;
-  for (uint8_t xx=0;xx<Leng;xx++)
-  {
-    for (uint8_t offset=0; offset<6; offset++)
-    {
-      tft.drawPixel(Xx+xx+offset, Yy+AlfHigh+(AlfHigh*sin((3.14/High)*float(xx))), ST77XX_GREEN);
-    }
-  }
-}
 
 
-//-----------------------------------------------------------------------------
-// DrawTriangle
-//    Draw on tft the Triangle sprite
-//-----------------------------------------------------------------------------
-void DrawTriangle(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
-{
-  //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
-  TftFrequencyLimit();
-
-  for(uint8_t offset=0;offset<6;offset++)
-  {
-    tft.drawLine(           Xx+offset, Yy+High/2,     Xx+Leng/6+offset, Yy+High-1, ST77XX_GREEN);
-    tft.drawLine(  Xx+(Leng/6)+offset, Yy+High-1, Xx+(3*Leng/6)+offset,        Yy, ST77XX_GREEN);
-    tft.drawLine(Xx+(3*Leng/6)+offset,        Yy, Xx+(5*Leng/6)+offset, Yy+High-1, ST77XX_GREEN);
-    tft.drawLine(Xx+(5*Leng/6)+offset, Yy+High-1,     Xx+Leng-5+offset, Yy+High/2, ST77XX_GREEN);
-  }
-}
-
-//-----------------------------------------------------------------------------
-// DrawSquare
-//    Draw on tft the Square sprite
-//-----------------------------------------------------------------------------
-void DrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
-{
-  //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
-  TftFrequencyLimit();
-
-  for(uint8_t offset=0;offset<6;offset++)
-  {
-    tft.drawLine(         Xx+offset,        Yy,          Xx+offset,  Yy+High-1, ST77XX_GREEN);
-    tft.drawLine(         Xx+offset, Yy+High-1,   Xx+Leng/3+offset,  Yy+High-1, ST77XX_GREEN);
-    tft.drawLine(  Xx+Leng/3+offset, Yy+High-1,   Xx+Leng/3+offset,         Yy, ST77XX_GREEN);
-    tft.drawLine(  Xx+Leng/3+offset,        Yy, Xx+2*Leng/3+offset,         Yy, ST77XX_GREEN);
-    tft.drawLine(Xx+2*Leng/3+offset,        Yy, Xx+2*Leng/3+offset,  Yy+High-1, ST77XX_GREEN);
-    tft.drawLine(Xx+2*Leng/3+offset, Yy+High-1,     Xx+Leng+offset,  Yy+High-1, ST77XX_GREEN);
-    tft.drawLine(    Xx+Leng-offset,        Yy,     Xx+Leng-offset,  Yy+High-1, ST77XX_GREEN);
-  }
-}
-
-//-----------------------------------------------------------------------------
-// PrintFrequencyLimit
-//    Draw on tft the Frequency limit for the wave sprite
-//-----------------------------------------------------------------------------
-void TftFrequencyLimit()
-{
-  //Cancella il simbolo precedente
-  tft.fillRect(76,112,51, 27, ST77XX_BLACK);
-  //Cancella i limiti precedenti
-  tft.fillRect(1,112, 73, 24, ST77XX_BLACK);
-  //Scrive i limiti di frequenza impostati
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(2,128);
-  tft.print("min ");
-  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
-  tft.setCursor(59,128);
-  tft.print("Hz");
-  tft.setCursor(2,119);
-  tft.print("Step ");
-  tft.print(int(FrequencyRotaryStepHerz[0]));
-  tft.setCursor(59,119);
-  tft.print("Hz");
-  tft.setCursor(2,110);
-  tft.print("MAX ");
-  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
-  tft.setCursor(59,110);
-  tft.print("MHz");
-}
 
 
 //-----------------------------------------------------------------------------
@@ -1098,6 +960,153 @@ void DrawSweepTime(uint8_t Xx,uint8_t Yy, uint16_t SweepTimeX)
 //  tft.print(" Delta T min");
 }
 
+//-----------------------------------------------------------------------------
+// tftHello
+//    set TFT Hello Message 
+//-----------------------------------------------------------------------------
+void tftHello() 
+{
+  tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
+  
+  tft.setTextWrap(false);
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setCursor(30, 5);
+  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextSize(4);
+  tft.println(Modello);
+  tft.setCursor(40, 45);
+  tft.setTextColor(ST77XX_YELLOW);
+  tft.setTextSize(3);
+  tft.println(Modello1);
+  tft.setCursor(15, 75);
+  tft.println(Modello2);
+////  tft.setCursor(15, 105);
+  tft.setCursor(30, 105);
+  tft.setTextSize(2);
+  tft.print("SaLe");
+  tft.setCursor(5, 120);
+  tft.println("DarioMAS");
+  tft.setTextSize(1);
+//  tft.println();
+  tft.print("Hardware Ver.");
+  tft.println(Hardware);
+  tft.print("Software Ver.");
+  tft.println(Software);
+}
+
+
+//-----------------------------------------------------------------------------
+// TftFrequencyLimit
+//    Draw on tft the Frequency limit for the wave sprite
+//-----------------------------------------------------------------------------
+void TftFrequencyLimit()
+{
+  //Cancella il simbolo precedente
+  tft.fillRect(76,112,51, 27, ST77XX_BLACK);
+  //Cancella i limiti precedenti
+  tft.fillRect(1,112, 73, 24, ST77XX_BLACK);
+  //Scrive i limiti di frequenza impostati
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(2,128);
+  tft.print("min ");
+  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+  tft.setCursor(59,128);
+  tft.print("Hz");
+  tft.setCursor(2,119);
+  tft.print("Step ");
+  tft.print(int(FrequencyRotaryStepHerz[0]));
+  tft.setCursor(59,119);
+  tft.print("Hz");
+  tft.setCursor(2,110);
+  tft.print("MAX ");
+  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+  tft.setCursor(59,110);
+  tft.print("MHz");
+}
+
+//-----------------------------------------------------------------------------
+// TftCurrentWave
+//    Draw on tft the wave form and frequency limit
+//-----------------------------------------------------------------------------
+void TftCurrentWave(uint8_t Mode)
+{
+  switch (Mode)
+  {
+    case 0:
+      TftDrawSine(45, 25,77, 110);
+      break;
+    case 1:
+      TftDrawTriangle(45, 25,77, 110);
+      break;
+    case 2:
+      TftDrawSquare(45, 25,77, 110);
+      break;
+    default:
+      break;
+  }
+}
+
+//-----------------------------------------------------------------------------
+// TftDrawSine
+//    Draw on tft the Sine sprite
+//-----------------------------------------------------------------------------
+void TftDrawSine(uint8_t Leng, float High,uint8_t Xx, uint8_t Yy)
+{
+  //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
+  TftFrequencyLimit();
+
+  float AlfHigh = High/2;
+  for (uint8_t xx=0;xx<Leng;xx++)
+  {
+    for (uint8_t offset=0; offset<6; offset++)
+    {
+      tft.drawPixel(Xx+xx+offset, Yy+AlfHigh+(AlfHigh*sin((3.14/High)*float(xx))), ST77XX_GREEN);
+    }
+  }
+}
+
+
+//-----------------------------------------------------------------------------
+// TftDrawTriangle
+//    Draw on tft the Triangle sprite
+//-----------------------------------------------------------------------------
+void TftDrawTriangle(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
+{
+  //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
+  TftFrequencyLimit();
+
+  for(uint8_t offset=0;offset<6;offset++)
+  {
+    tft.drawLine(           Xx+offset, Yy+High/2,     Xx+Leng/6+offset, Yy+High-1, ST77XX_GREEN);
+    tft.drawLine(  Xx+(Leng/6)+offset, Yy+High-1, Xx+(3*Leng/6)+offset,        Yy, ST77XX_GREEN);
+    tft.drawLine(Xx+(3*Leng/6)+offset,        Yy, Xx+(5*Leng/6)+offset, Yy+High-1, ST77XX_GREEN);
+    tft.drawLine(Xx+(5*Leng/6)+offset, Yy+High-1,     Xx+Leng-5+offset, Yy+High/2, ST77XX_GREEN);
+  }
+}
+
+//-----------------------------------------------------------------------------
+// TftDrawSquare
+//    Draw on tft the Square sprite
+//-----------------------------------------------------------------------------
+void TftDrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
+{
+  //Cancella il simbolo precedente e presenta i limiti in frequenza pert la forma d'onda corrente
+  TftFrequencyLimit();
+
+  for(uint8_t offset=0;offset<6;offset++)
+  {
+    tft.drawLine(         Xx+offset,        Yy,          Xx+offset,  Yy+High-1, ST77XX_GREEN);
+    tft.drawLine(         Xx+offset, Yy+High-1,   Xx+Leng/3+offset,  Yy+High-1, ST77XX_GREEN);
+    tft.drawLine(  Xx+Leng/3+offset, Yy+High-1,   Xx+Leng/3+offset,         Yy, ST77XX_GREEN);
+    tft.drawLine(  Xx+Leng/3+offset,        Yy, Xx+2*Leng/3+offset,         Yy, ST77XX_GREEN);
+    tft.drawLine(Xx+2*Leng/3+offset,        Yy, Xx+2*Leng/3+offset,  Yy+High-1, ST77XX_GREEN);
+    tft.drawLine(Xx+2*Leng/3+offset, Yy+High-1,     Xx+Leng+offset,  Yy+High-1, ST77XX_GREEN);
+    tft.drawLine(    Xx+Leng-offset,        Yy,     Xx+Leng-offset,  Yy+High-1, ST77XX_GREEN);
+  }
+}
+
+
 void TftGraphInit()
 {
   //Inizializza il display tft
@@ -1127,7 +1136,41 @@ void TftGraphInit()
   tft.print("F3");  
 }
 
+void TftPipCreate()
+{
+  tft.drawRect(5,65,123,30,ST7735_WHITE);
+  tft.fillRect(6,66,121,28,ST77XX_BLUE);
+  tft.drawRect(0,60,123,30,ST7735_WHITE);
+  tft.fillRect(1,61,121,28,ST77XX_YELLOW);
+}
 
+void TftPipPrint(char *UnitaMisura, uint32_t Misura)
+{
+#define FontLar 11
+#define PipEndSpace 2
+#define PipFontY 63
+#define PipEndArea 122
+  tft.setTextSize(2);//Moltiplica la dimensione del font di default (5*8)
+  tft.setTextColor(ST77XX_BLACK);
+  //pulisce il valore precedente
+  tft.fillRect(1,61,121,28,ST77XX_YELLOW);
+  //Calcola la posizione dell'unità di misura
+  uint8_t XUnitMisLeng = ((sizeof(UnitaMisura) * FontLar) + PipEndSpace);
+  uint8_t Xx = PipEndArea - XUnitMisLeng;
+  tft.setCursor(Xx,PipFontY);
+  tft.print(UnitaMisura);
+  //Con la formula ((121-Xx)/FontLar) calcola il numero massimo di cifre presentabili
+  uint8_t MaxLength = ((121-XUnitMisLeng)/FontLar);
+
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.printDigit(MaxLength,0);
+
+  char TftPipBuffer[MaxLength];
+  PString(TftPipBuffer, MaxLength, Misura);
+  tft.setCursor((Xx-(MaxLength*FontLar)),PipFontY);
+  tft.print(TftPipBuffer);
+
+}
 
 void SetupIO()
 {
