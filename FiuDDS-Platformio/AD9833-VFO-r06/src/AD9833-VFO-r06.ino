@@ -33,6 +33,47 @@
 //#include <EEPROM.h>
 
 //#=================================================================================
+// General Controll area
+// Lo stato del generatore e delle funzioni di controllo
+//Sono gestite tramite una parola al fine di rendere più semplice il controllo
+//degli stati e l'attivazione dei moduli di programma 
+//#=================================================================================
+// FiuMode
+// bit 7 
+//            0 Fixed Frequency
+//            1 Sweep
+// bit 6-5
+//            0 L to H
+//            1 H to L
+//            2 L to H to L
+//            3 Center +- Delta
+// bit 4
+// bit 3
+// bit 2
+// bit 1
+//           0 Encoder Aux Normal
+//           1 Encoder Aux Push
+// bit 0 
+//           0 Encoder Frequency Normal
+//           1 Encoder Frequency Push
+//
+
+#define FixedFrequency 0
+#define Swepp 128
+#define SweepLtoH 0
+#define SweepHtoL 32
+#define SweepLtoHtoL 64
+#define SweepCenter 96
+#define EncoderAuxNormal 0
+#define EncoderAuxPush 2
+#define EncoderFrequencyNormal 0
+#define EncoderFrequencyPush 1
+uint8_t FiuMode = FixedFrequency +
+                  SweepLtoH +
+                  EncoderAuxNormal +
+                  EncoderFrequencyNormal;
+
+//#=================================================================================
 // AD9833 IC area
 // DDS Generator
 //#=================================================================================
@@ -213,7 +254,7 @@ float FrequencyRotaryStepHerz[2];//Valore effettivo dello step da attuare espres
 #define MERotaryA  9
 #define MERotaryB 10
 #define MERotaryButton 15
-SimpleRotary ModeRotary(MERotaryA,MERotaryB,MERotaryButton);
+SimpleRotary AuxRotary(MERotaryA,MERotaryB,MERotaryButton);
 
 uint8_t ModeRotaryState;
 
@@ -267,11 +308,6 @@ void setup()
   TftGraphInit();
   TftFrequencyLimit(); 
   TftCurrentWave(0); 
-
-  TftPipCreate();
-  PipStatus = PipRequestRefresh;
-  TftPipPrint("MHz",5002);
-  FrequencyRotaryPushStatus = 8;
 }
 
 
@@ -281,9 +317,22 @@ void setup()
 //#=================================================================================
 void loop()
 {
-  Counter ++;
-  RotaryFrequencyPush();
-  delay(200);
+  //Controlla se gli encoder sono premuti
+  RotaryPush();
+  //controlla se è premuto l'encoder principale (frequenza)
+  if (FiuMode & EncoderFrequencyPush)
+  {
+    TftPipCreate("F Step");
+    PipStatus = PipRequestRefresh;
+    TftPipPrint("MHz",5002);
+  }
+  else
+  {
+    //controlla se è premuto l'encoder ausiliario (Aux)
+    if (FiuMode & EncoderAuxPush)
+    {
+    }
+  }  
 }
 
 //#=================================================================================
@@ -524,7 +573,7 @@ void CheckRotaryModeStep()
   delay(10);
   while (digitalRead(MERotaryButton) == LOW)
   {
-    ModeRotaryState= ModeRotary.rotate();
+    ModeRotaryState= AuxRotary.rotate();
 // 0 = not turning, 1 = CW, 2 = CCW
     if ( ModeRotaryState== 1 ) 
     {
@@ -1152,11 +1201,19 @@ void TftGraphInit()
   tft.print("F3");  
 }
 
-void TftPipCreate()
+void TftPipCreate(char *Titolo)
 {
-  tft.drawRect(5,65,123,30,ST7735_WHITE);
+  tft.drawRoundRect(5,30,123,30,3,ST77XX_WHITE);
+  tft.fillRoundRect(6,31,121,28,3, ST77XX_BLUE);
+  tft.drawRoundRect(0,25,123,30,3, ST77XX_BLACK);
+  tft.fillRoundRect(1,26,121,28,3, ST77XX_YELLOW);
+  tft.setTextSize(2);
+  tft.setTextColor(ST7735_BLACK);
+  tft.setCursor(10,35);
+  tft.print(Titolo);
+  tft.drawRect(5,65,123,30,ST77XX_WHITE);
   tft.fillRect(6,66,121,28,ST77XX_BLUE);
-  tft.drawRect(0,60,123,30,ST7735_WHITE);
+  tft.drawRect(0,60,123,30,ST77XX_BLACK);
   tft.fillRect(1,61,121,28,ST77XX_YELLOW);
   PipStatus = PipActive;
 }
@@ -1214,6 +1271,7 @@ void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uin
   }
 }
 
+
 void SetupIO()
 {
   pinMode(AD9833DATA, OUTPUT);
@@ -1229,22 +1287,29 @@ void SetupIO()
 
   //Setta le opzioni per la gestione degli encoder
   FrequencyRotary.setDebounceDelay(5);
-  ModeRotary.setDebounceDelay(5);
+  AuxRotary.setDebounceDelay(5);
   FrequencyRotary.setErrorDelay(100);
-  ModeRotary.setErrorDelay(100);
+  AuxRotary.setErrorDelay(100);
 }
 
-void RotaryFrequencyPush()
+void RotaryPush()
 {
   if (FrequencyRotary.push() == 1)
   {
-    FrequencyDisplay.printDigit(Counter,1);
     //Inverte lo stato del bit 0 di FrequencyRotaryPushStatus
-    bitWrite(FrequencyRotaryPushStatus,0,(!bitRead(FrequencyRotaryPushStatus,0)));
+    bitWrite(FiuMode,0,(!bitRead(FiuMode,0)));
     //Fa un ritardo arbitrario per evitare eventuali spurie
     delay(100);
   }
-  FrequencyDisplay.printDigit (FrequencyRotaryPushStatus,0);
-
+  else
+  {
+    if (AuxRotary.push() == 1)
+    {
+      //Inverte lo stato del bit 0 di FrequencyRotaryPushStatus
+      bitWrite(FiuMode,1,(!bitRead(FiuMode,1)));
+      //Fa un ritardo arbitrario per evitare eventuali spurie
+      delay(100);
+    }
+  }
   
 }
