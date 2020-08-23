@@ -173,8 +173,6 @@ const uint8_t FHello[16] PROGMEM = {B00000000,
 #define TFT_DC      5  // define data/command pin
 #define TFT_RST     6  // define reset pin, or set to -1 and connect to Arduino RESET pin
 
-char SweepTimeBuff[9];
-
 // Initialize Adafruit ST7735 TFT library
 //Usa la SPI hardware. In questa configurazione hardware crea problemi la convivenza dei
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
@@ -186,6 +184,11 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 // For ST7735-based displays, we will use this call
 //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
+#define PipOff 0
+#define PipActive 1
+#define PipRequestRefresh 2
+uint8_t PipStatus = PipOff;
+
 //#=================================================================================
 // Encoder Rotary area
 //Settaggio Frequenza e Step di avanzamento frequenza
@@ -194,6 +197,10 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 #define FERotaryB 8
 #define FERotaryButton 14
 SimpleRotary FrequencyRotary(FERotaryA,FERotaryB,FERotaryButton);
+
+#define PushOff 0
+#define PushOn 1
+uint8_t FrequencyRotaryPushStatus = PushOff;
 
 uint8_t FrequencyRotaryState;
 uint8_t FrequencyRotaryStep[2] = {0, 0};//potenza del 10 che si somma o sottrae alla frequenza
@@ -228,6 +235,8 @@ char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
 #define SerialSpeed 115200
 
 
+uint32_t Counter = 0;
+
 //#=================================================================================
 // Setup
 //#=================================================================================
@@ -260,8 +269,9 @@ void setup()
   TftCurrentWave(0); 
 
   TftPipCreate();
+  PipStatus = PipRequestRefresh;
   TftPipPrint("MHz",5002);
-  delay(3000);
+  FrequencyRotaryPushStatus = 8;
 }
 
 
@@ -271,6 +281,9 @@ void setup()
 //#=================================================================================
 void loop()
 {
+  Counter ++;
+  RotaryFrequencyPush();
+  delay(200);
 }
 
 //#=================================================================================
@@ -302,10 +315,10 @@ void CheckControllPanel()
       }
     }
   }
-  else
+/*   else
   {
     //Controlla se l'encoder principale è stato ruotato
-    FrequencyRotaryState= FrequencyRotary.rotate();
+    FrequencyRotaryState = FrequencyRotary.rotate();
     if (FrequencyRotaryState != 0)
     //Controlla se l'encoder principale è premuto
     {
@@ -319,8 +332,7 @@ void CheckControllPanel()
       {
         CheckRotaryFrequencyStep();
       }    
-    }
-  
+    }  
     ModeRotaryState = ModeRotary.rotate();
     if (ModeRotaryState != 0)
     {
@@ -335,6 +347,7 @@ void CheckControllPanel()
       }
     }
   }
+ */
 }
 
 //#=================================================================================
@@ -950,9 +963,9 @@ void DrawSweepTime(uint8_t Xx,uint8_t Yy, uint16_t SweepTimeX)
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(Xx,Yy);
   //Converte in formato fisso SweepTime
-  sprintf(SweepTimeBuff, "%05u mS", SweepTimeX);
+//  sprintf(SweepTimeBuff, "%05u mS", SweepTimeX);
   //Presenta su tft il tempo di sweep in formato fisso
-  tft.print(SweepTimeBuff);
+//  tft.print(SweepTimeBuff);
 //  tft.print("mS");  
 //  tft.setTextSize(1);
 //  tft.setCursor(Xx,Yy+15);
@@ -1009,18 +1022,21 @@ void TftFrequencyLimit()
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(2,128);
-  tft.print("min ");
-  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+  tft.print("min");
+  //Stampa il valore allineato a Dx tramite la routines specializzata
+  TftPrintIntDxGiustify(59, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
   tft.setCursor(59,128);
   tft.print("Hz");
   tft.setCursor(2,119);
-  tft.print("Step ");
-  tft.print(int(FrequencyRotaryStepHerz[0]));
+  tft.print("Step");
+  //Stampa il valore allineato a Dx tramite la routines specializzata
+  TftPrintIntDxGiustify(59, 119, 1, int(FrequencyRotaryStepHerz[0]));
   tft.setCursor(59,119);
   tft.print("Hz");
   tft.setCursor(2,110);
-  tft.print("MAX ");
-  tft.print(FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+  tft.print("MAX");
+  //Stampa il valore allineato a Dx tramite la routines specializzata
+  TftPrintIntDxGiustify(59, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
   tft.setCursor(59,110);
   tft.print("MHz");
 }
@@ -1142,38 +1158,59 @@ void TftPipCreate()
   tft.fillRect(6,66,121,28,ST77XX_BLUE);
   tft.drawRect(0,60,123,30,ST7735_WHITE);
   tft.fillRect(1,61,121,28,ST77XX_YELLOW);
+  PipStatus = PipActive;
 }
 
 void TftPipPrint(char *UnitaMisura, uint32_t Misura)
 {
-#define FontLar 11
+#define FontLarg 12
 #define PipEndSpace 2
-#define PipFontY 63
+#define PipFontY 65
 #define PipEndArea 122
-  tft.setTextSize(2);//Moltiplica la dimensione del font di default (5*8)
-  tft.setTextColor(ST77XX_BLACK);
-  //pulisce il valore precedente
-  tft.fillRect(1,61,121,28,ST77XX_YELLOW);
-  //Calcola la lunghezza dell'Unità di Misura (in pixel)
-  uint8_t XUnitMisLeng = ((sizeof(UnitaMisura) * FontLar) + PipEndSpace);
-  //Calcola la posizione dell'unità di misura
-  uint8_t Xx = PipEndArea - XUnitMisLeng;
-  //Posiziona il cursore
-  tft.setCursor(Xx,PipFontY);
-  //Stampa
-  tft.print(UnitaMisura);
-  //Calcola il numero massimo di cifre presentabili
-  uint8_t MaxLength = ((121-XUnitMisLeng)/FontLar);
-
-  FrequencyDisplay.clear(0);
-  FrequencyDisplay.printDigit(MaxLength,0);
-  //Presenta la Misura allineandola a destra rispetto all'Unità di Misura
-  while (Misura != 0)
+  //Aggiorna il contenuto del PiP SOLO se richiesto
+  if(PipStatus == PipRequestRefresh)
   {
-    Xx-=FontLar;
+    tft.setTextSize(2);//Moltiplica la dimensione del font di default (5*8)
+    tft.setTextColor(ST77XX_BLACK);
+    //pulisce il valore precedente
+    tft.fillRect(1,61,121,28,ST77XX_YELLOW);
+    //Calcola la lunghezza dell'Unità di Misura (in pixel)
+    uint8_t XUnitMisLeng = ((strlen(UnitaMisura) * FontLarg) + PipEndSpace);
+    //Calcola la posizione dell'unità di misura
+    uint8_t Xx = PipEndArea - XUnitMisLeng;
+    //Posiziona il cursore
     tft.setCursor(Xx,PipFontY);
-    tft.print(Misura%10);
-    Misura /= 10;
+    //Stampa
+    tft.print(UnitaMisura);
+    //Calcola il numero massimo di cifre presentabili
+    uint8_t MaxLength = ((121-XUnitMisLeng)/FontLarg);
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura);
+    //Indica che il PiP è attivo ed è stato attualizzato il valore presentato
+    PipStatus = PipActive;
+  }
+}
+  
+void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value)
+{
+//Font Large considera la larghezza del font base e dello spazio fra un carattere e l'altro
+#define FontLargBase 6
+  //Presenta la Misura allineandola a destra rispetto all'Unità di Misura
+  //Converte il fontMultiplyer in FontSize
+  FontMultiplyer = FontLargBase * FontMultiplyer;
+  if (Value == 0)
+  //Gestisce il caso in cui si vuole presentare il valor 0
+  {
+    Xxx-= FontMultiplyer;
+    tft.setCursor(Xxx,Yyy);
+    tft.print(Value % 10);
+  }
+  while (Value != 0)
+  {
+    Xxx-= FontMultiplyer;
+    tft.setCursor(Xxx,Yyy);
+    tft.print(Value % 10);
+    Value /= 10;
   }
 }
 
@@ -1189,4 +1226,25 @@ void SetupIO()
   pinMode(Push2, INPUT_PULLUP);
 
   pinMode(MAX7219CS, OUTPUT);
+
+  //Setta le opzioni per la gestione degli encoder
+  FrequencyRotary.setDebounceDelay(5);
+  ModeRotary.setDebounceDelay(5);
+  FrequencyRotary.setErrorDelay(100);
+  ModeRotary.setErrorDelay(100);
+}
+
+void RotaryFrequencyPush()
+{
+  if (FrequencyRotary.push() == 1)
+  {
+    FrequencyDisplay.printDigit(Counter,1);
+    //Inverte lo stato del bit 0 di FrequencyRotaryPushStatus
+    bitWrite(FrequencyRotaryPushStatus,0,(!bitRead(FrequencyRotaryPushStatus,0)));
+    //Fa un ritardo arbitrario per evitare eventuali spurie
+    delay(100);
+  }
+  FrequencyDisplay.printDigit (FrequencyRotaryPushStatus,0);
+
+  
 }
