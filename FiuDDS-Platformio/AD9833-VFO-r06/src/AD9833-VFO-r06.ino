@@ -25,7 +25,7 @@
 #include <SPI.h>             // Arduino SPI library
 #include <MD_AD9833.h>
 #include <SimpleRotary.h>
-#include <PString.h>
+//#include <PString.h>
 
 //IMPORTANT
 //Use the last version of this libraries
@@ -1154,22 +1154,27 @@ void TftPipPrint(char *UnitaMisura, uint32_t Misura)
   tft.setTextColor(ST77XX_BLACK);
   //pulisce il valore precedente
   tft.fillRect(1,61,121,28,ST77XX_YELLOW);
-  //Calcola la posizione dell'unità di misura
+  //Calcola la lunghezza dell'Unità di Misura (in pixel)
   uint8_t XUnitMisLeng = ((sizeof(UnitaMisura) * FontLar) + PipEndSpace);
+  //Calcola la posizione dell'unità di misura
   uint8_t Xx = PipEndArea - XUnitMisLeng;
+  //Posiziona il cursore
   tft.setCursor(Xx,PipFontY);
+  //Stampa
   tft.print(UnitaMisura);
-  //Con la formula ((121-Xx)/FontLar) calcola il numero massimo di cifre presentabili
+  //Calcola il numero massimo di cifre presentabili
   uint8_t MaxLength = ((121-XUnitMisLeng)/FontLar);
 
   FrequencyDisplay.clear(0);
   FrequencyDisplay.printDigit(MaxLength,0);
-
-  char TftPipBuffer[MaxLength];
-  PString(TftPipBuffer, MaxLength, Misura);
-  tft.setCursor((Xx-(MaxLength*FontLar)),PipFontY);
-  tft.print(TftPipBuffer);
-
+  //Presenta la Misura allineandola a destra rispetto all'Unità di Misura
+  while (Misura != 0)
+  {
+    Xx-=FontLar;
+    tft.setCursor(Xx,PipFontY);
+    tft.print(Misura%10);
+    Misura /= 10;
+  }
 }
 
 void SetupIO()
