@@ -241,11 +241,12 @@ SimpleRotary FrequencyRotary(FERotaryA,FERotaryB,FERotaryButton);
 
 #define PushOff 0
 #define PushOn 1
-uint8_t FrequencyRotaryPushStatus = PushOff;
+//uint8_t FrequencyRotaryPushStatus = PushOff;
 
+uint8_t RotaryState = 0;
 uint8_t FrequencyRotaryState;
-uint8_t FrequencyRotaryStep[2] = {0, 0};//potenza del 10 che si somma o sottrae alla frequenza
-float FrequencyRotaryStepHerz[2];//Valore effettivo dello step da attuare espresso in Herz
+uint8_t FrequencyStepEsponent = 0;//potenza del 10 che si somma o sottrae alla frequenza
+float FrequencyStepValue = 1;//Valore effettivo dello step da attuare espresso in Herz
 
 //#=================================================================================
 // Encoder Rotary area
@@ -319,12 +320,43 @@ void loop()
 {
   //Controlla se gli encoder sono premuti
   RotaryPush();
-  //controlla se è premuto l'encoder principale (frequenza)
   if (FiuMode & EncoderFrequencyPush)
+  //controlla se è premuto l'encoder principale (frequenza)
   {
-    TftPipCreate("F Step");
-    PipStatus = PipRequestRefresh;
-    TftPipPrint("MHz",5002);
+    if (PipStatus == PipOff)
+    //Se la PiP non è stata creata la crea egli assegna il titolo, il primo valore
+    //e l'unità di misura
+    {
+      TftPipCreate("F Step");
+      //Forza lo stato della PiP in Da Aggiornare
+      PipStatus = PipRequestRefresh;
+      //e lo aggiorna
+      TftPipPrint("Hz",FrequencyStepValue);
+    }
+    //Controlla se gli encoder sono stati ruotati
+    RotaryTurn();
+    //Elimina i segnali dell'encoder ausiliario
+    RotaryState = RotaryState & B00000011;
+
+    FrequencyDisplay.printDigit(RotaryState,0);
+
+    if ((PipStatus == PipActive) & (RotaryState != 0))
+    //Se la finetra PiP è attiva ed è stato ruotato l'encoder
+    {
+      //Attua la azione collegata alla rotazione della manopola
+      FrequencyStepEsponent = RotaryTurnAction(FrequencyStepEsponent, 1.0, 0, 7);
+      FrequencyStepValue = 1;
+      for (uint8_t ii = FrequencyStepEsponent; ii != 0; ii--)
+      {
+        FrequencyStepValue = FrequencyStepValue * 10.0;
+      } 
+      //Aggiorna la visualizzazione "normale"
+      TftFrequencyLimit(); 
+      //Forza lo stato della PiP in "Da Aggiornare"
+      PipStatus = PipRequestRefresh;
+      //e lo aggiorna
+      TftPipPrint("Hz",FrequencyStepValue);
+    }
   }
   else
   {
@@ -399,173 +431,13 @@ void CheckControllPanel()
  */
 }
 
-//#=================================================================================
-// CheckRotaryFrequencyStep
-// Gestisce il settaggio del passo per l'aggiornamento della frequenza.
-// In questa versione, la frequenza è aggiornabile tramite manopola (encoder)e
-// ad ogni passo della manopola corrisponde un icremento/decremento del modulo della
-// frequenza.
-// Il passo è definito per ogni generatore/display della frequenza
-//#=================================================================================
-void CheckRotaryFrequencyStep()
-{
-//  if (CurrentGenerator == 0)
-//  //controlla se il generatore corrente è il primo
-//  {
-  FrequencyDisplay.clear(CurrentGenerator);//Pulisce il primo display a 7 segmenti
-  //Presenta il carattere che indica la cifra di incremento del valore
-  FrequencyDisplay.write(FrequencyRotaryStep[0]+1,B01100011);
-  delay(10);//Antibounce
 
-  while (digitalRead(FERotaryButton) == LOW)
-  //Fin quando la manopola rimane premuta
- {
-    FrequencyRotaryStep[CurrentGenerator]=CheckRotaryFrequencyStepRotate(FrequencyRotaryStep[CurrentGenerator]);
-    FrequencyDisplay.clear(CurrentGenerator);
-    FrequencyDisplay.write(FrequencyRotaryStep[CurrentGenerator]+1,B01100011);
-  }
-  TftFrequencyLimit();
-}
+
 
 //#=================================================================================
 //#
 //#=================================================================================
-byte CheckRotaryFrequencyStepRotate(byte FStep)
-//Gestisce la rotazione della manopola
-{
-  FrequencyRotaryState= FrequencyRotary.rotate();//Verifica se la manopola è stata ruotata
-  // 0 = not turning, 1 = CW, 2 = CCW
-  if ( FrequencyRotaryState== 1 ) 
-  {
-    FStep++;
-  }
-  if ( FrequencyRotaryState== 2 ) 
-  {
-    FStep--;
-  }  
-  delay(20);
-  return(FStep);
-}
 
-//#=================================================================================
-//#
-//#=================================================================================
-void CheckRotaryFrequency()
-{
-//Calcola lo step attuale effettivo per i generatori 0 e 1
-//  FrequencyRotaryStepHerz[0]=pow(10,FrequencyRotaryStep[0]);
-//  FrequencyRotaryStepHerz[1]=pow(10,FrequencyRotaryStep[1]);
-  for (byte i=0;i<2;i++)
-  {
-    FrequencyRotaryStepHerz[i]=1;
-    for(byte ii=0; ii>FrequencyRotaryStep[i]; ii++)
-    {
-      FrequencyRotaryStepHerz[i]*=10;
-    }
-    
-  }
-
-  //Modifica il valore della frequenza
-  //Ruota in senso orario -> Aumenta la frequenza
-  if(GlobalMode == GlobalModeModulation)
-  {
-    if ( FrequencyRotaryState== 1 ) 
-    {
-      Frequency[0][0] += FrequencyRotaryStepHerz[0];
-    }
-    //Ruota in senso antiorario -> Diminuisce la frequenza
-    if ( FrequencyRotaryState== 2 ) 
-    {
-      Frequency[0][0] -= FrequencyRotaryStepHerz[0];
-    }
-  }
-  else
-  {
-    if ( FrequencyRotaryState== 1 ) 
-    {
-      Frequency[CurrentGenerator][0] += FrequencyRotaryStepHerz[CurrentGenerator];
-    }
-    //Ruota in senso antiorario -> Diminuisce la frequenza
-    if ( FrequencyRotaryState== 2 ) 
-    {
-      Frequency[CurrentGenerator][0] -= FrequencyRotaryStepHerz[CurrentGenerator];
-    }
-  }
-  //Fa il controllo del fuori scala (differenziato in funzione della modalità di funzionamento)
-  switch (GlobalMode)
-  {
-    case GlobalModeFixFrequency:
-      //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
-      //Controlla il fuori scala inferiore
-      if (Frequency[0][0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
-      {
-        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
-      }
-      //Controlla il fuori scala superiore
-      if (Frequency[0][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
-      {
-        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
-      }
-      //Setta frequenza e forma d'onda
-      AD9833FreqSet(Frequency[CurrentGenerator][0],FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]],CurrentGenerator);
-      break;
-    case GlobalModeSweepLtH:
-      //Controlla il fuori scala rispetto al limite superiore per forma d'onda e inferiore per F0+1
-      //Controlla il fuori scala inferiore
-      if (Frequency[1][0]<Frequency[0][0]+1)
-      {
-        Frequency[1][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
-      }
-      //Controlla il fuori scala superiore
-      if (Frequency[1][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
-      {
-        Frequency[1][0] = Frequency[0][0]+1;
-      }
-      //Ricalcola i parametri di sweep
-      SweepTStep = 1;
-      FSweepStep=(Frequency[1][0]-Frequency[0][0])/(SweepTime/SweepTStep);
-      if (FSweepStep<1.0)
-      {
-        SweepTStep= 1/FSweepStep;
-        FSweepStep=(Frequency[1][0]-Frequency[0][0])/(SweepTime/SweepTStep);
-      }
-      break;
-    case GlobalModeModulation:
-      //F1
-      //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
-      //Controlla il fuori scala inferiore
-      if (Frequency[0][0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
-      {
-        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
-      }
-      //Controlla il fuori scala superiore
-      if (Frequency[0][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
-      {
-        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
-      }
-      //F2
-      //Controlla il fuori scala rispetto ai limiti assoluti per forma d'onda
-      //Controlla il fuori scala inferiore
-      if (Frequency[0][0]<FrequencyLimit[FrequencyWaveCurrentType[0]][0])
-      {
-        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][1];
-      }
-      //Controlla il fuori scala superiore
-      if (Frequency[0][0]>FrequencyLimit[FrequencyWaveCurrentType[0]][1])
-      {
-        Frequency[0][0] = FrequencyLimit[FrequencyWaveCurrentType[0]][0];
-      }
-      //Setta frequenza e forma d'onda F1
-      AD9833FreqSet(Frequency[0][0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
-      //Setta frequenza e forma d'onda
-      AD9833FreqSet(Frequency[1][0],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
-      break;
-    default:
-      break;
-  }
-  //Aggiorna il display
-  DisplayFrequency(CurrentGenerator);
-}
 
 void CheckRotaryModeStep()
 {
@@ -1079,7 +951,7 @@ void TftFrequencyLimit()
   tft.setCursor(2,119);
   tft.print("Step");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(59, 119, 1, int(FrequencyRotaryStepHerz[0]));
+  TftPrintIntDxGiustify(59, 119, 1, int(FrequencyStepValue));
   tft.setCursor(59,119);
   tft.print("Hz");
   tft.setCursor(2,110);
@@ -1172,6 +1044,9 @@ void TftDrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 }
 
 
+//#=================================================================================
+//#
+//#=================================================================================
 void TftGraphInit()
 {
   //Inizializza il display tft
@@ -1201,6 +1076,9 @@ void TftGraphInit()
   tft.print("F3");  
 }
 
+//#=================================================================================
+//#
+//#=================================================================================
 void TftPipCreate(char *Titolo)
 {
   tft.drawRoundRect(5,30,123,30,3,ST77XX_WHITE);
@@ -1218,6 +1096,9 @@ void TftPipCreate(char *Titolo)
   PipStatus = PipActive;
 }
 
+//#=================================================================================
+//#
+//#=================================================================================
 void TftPipPrint(char *UnitaMisura, uint32_t Misura)
 {
 #define FontLarg 12
@@ -1248,6 +1129,9 @@ void TftPipPrint(char *UnitaMisura, uint32_t Misura)
   }
 }
   
+//#=================================================================================
+//#
+//#=================================================================================
 void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value)
 {
 //Font Large considera la larghezza del font base e dello spazio fra un carattere e l'altro
@@ -1272,6 +1156,9 @@ void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uin
 }
 
 
+//#=================================================================================
+//#
+//#=================================================================================
 void SetupIO()
 {
   pinMode(AD9833DATA, OUTPUT);
@@ -1292,6 +1179,9 @@ void SetupIO()
   AuxRotary.setErrorDelay(100);
 }
 
+//#=================================================================================
+//#
+//#=================================================================================
 void RotaryPush()
 {
   if (FrequencyRotary.push() == 1)
@@ -1311,5 +1201,40 @@ void RotaryPush()
       delay(100);
     }
   }
-  
+}
+
+
+//#=================================================================================
+//#
+//#=================================================================================
+void RotaryTurn()
+{
+  //Legge l'encoder principale (Frequenza)
+  RotaryState = FrequencyRotary.rotate();
+  //Legge l'encoder ausiliario ()
+  RotaryState += (16*AuxRotary.rotate());
+}
+
+//#=================================================================================
+//#
+//#=================================================================================
+float RotaryTurnAction(float Value, float Delta, float LLimit, float HLimit)
+{
+  if (RotaryState == 1)
+  {
+    Value += Delta ;
+  }
+  else
+  {
+    Value -= Delta ;
+  }
+  if (Value < LLimit)
+  {
+    Value = HLimit;
+  } 
+  if (Value > HLimit)
+  {
+    Value = LLimit;
+  }
+  return (Value);
 }
