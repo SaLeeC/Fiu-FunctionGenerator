@@ -142,13 +142,13 @@ uint32_t FrequencyLimit[WaveTypeNumber][2] = {  1,  5000000,
 
 #define GlobalModeNumber 5
 #define GlobalModeFixFrequency 0
-#define GlobalModeSwee 1
+#define GlobalModeSweep 1
 #define GlobalModeSweepLtH 2
 #define GlobalModeSweepHtL 3
 #define GlobalModeSweepLtHtL 4
 #define GlobalModeModulation 5
 int8_t GlobalMode = GlobalModeFixFrequency;
-String GlobalModeLabel[GlobalModeNumber]={"Fixed Frequency",
+String GlobalModeLabel[GlobalModeNumber]={"Fixed Freq",
                                           "Sweep",
                                           "Sweep H > L",
                                           "Sweep L > H > L",
@@ -255,9 +255,9 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 #define PipMainFreqON 1
 #define PipAuxFreqON 2
 #define PipRequestRefresh 4
-#define PipFixedFreqRequest 128
-#define PipSweepRequest 64
-uint8_t TftStatus = PipMainFreqOff + PipFixedFreqRequest;
+#define FixedFreqRequest 128
+#define SweepRequest 64
+uint8_t TftStatus = FixedFreqRequest;
                     ;
 
 //#=================================================================================
@@ -336,8 +336,6 @@ void setup()
 
   //Inizializza il display TfT con la grafica per modalià Fixed Frequency
   TftGraphInit();
-  TftFrequencyLimit(); 
-  TftCurrentWave(0); 
 }
 
 
@@ -348,9 +346,40 @@ void setup()
 void loop()
 {
   //Controlla se è stato premuto il bottone per modificare la modalità di
-  //funzionamento corrente
+  //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT
   CheckControllPanel();
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.clear(1);
+  delay(500);
+  FrequencyDisplay.printDigit(FiuMode,0);
+  FrequencyDisplay.printDigit(TftStatus,1);
 
+  delay(2000);
+
+  //Controlla se gli encoder sono premuti
+  RotaryPush();
+
+  FrequencyDisplay.printDigit(TftStatus,0);
+
+  //controlla se è premuto l'encoder principale (frequenza)
+  //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
+  if (FiuMode & EncoderFrequencyPush)
+  {
+    FreqEncoderPush();
+  }
+  if (((FiuMode & EncoderFrequencyPush) == 0) & (TftStatus & PipMainFreqON))
+  {
+    //Segna come spenta la PiP
+    TftStatus = TftStatus & B11111110;
+    //Richiede l'aggiornamento della finestra di base
+    TftStatus = TftStatus | B10000000;
+
+    FrequencyDisplay.printDigit(TftStatus,1);
+
+    //Ricrea la finestra di base
+    TftGraphInit();
+
+  }
   //Controlla la modalità di funzionamento impostata
   //Se è vero è in modalità SWEEP
   if (FiuMode & B10000000)
@@ -365,48 +394,15 @@ void loop()
 
 
 
-  //Controlla se gli encoder sono premuti
-  RotaryPush();
   //Controlla se gli encoder sono stati ruotati
   RotaryTurn();
 
-  //controlla se è premuto l'encoder principale (frequenza)
-  if (FiuMode & EncoderFrequencyPush)
-  {
-    //Se la PiP non è stata creata la crea egli assegna il titolo, il primo valore
-    //e l'unità di misura
-    if (TftStatus == PipMainFreqOff)
-    {
-      TftPipCreate("F Step");
-      //Forza lo stato della PiP in Da Aggiornare
-      TftStatus = PipRequestRefresh;
-      //e lo aggiorna
-      TftPipPrint("Hz",FrequencyStepValue);
-    }
-    //Elimina i segnali dell'encoder ausiliario
-    RotaryState = RotaryState & B00000011;
-
-    FrequencyDisplay.printDigit(RotaryState,0);
-
-    if ((TftStatus == PipMainFreqON) & (RotaryState != 0))
-    //Se la finetra PiP è attiva ed è stato ruotato l'encoder
-    {
-      //Attua la azione collegata alla rotazione della manopola
-      FrequencyStepEsponent[0] = RotaryTurnAction(FrequencyStepEsponent[0], 1.0, 0, 7);
-      FrequencyStepValue[0] = 1;
-      for (uint8_t ii = FrequencyStepEsponent[0]; ii != 0; ii--)
-      {
-        FrequencyStepValue[0] = FrequencyStepValue[0] * 10.0;
-      } 
-      //Aggiorna la visualizzazione "normale"
-      TftFrequencyLimit(); 
-      //Forza lo stato della PiP in "Da Aggiornare"
-      TftStatus = PipRequestRefresh;
-      //e lo aggiorna
-      TftPipPrint("Hz",FrequencyStepValue[0]);
-    }
-  }
-  else
+  
+  
+  
+  
+  
+/*   else
   {
     //controlla se è premuto l'encoder ausiliario (Aux)
     if (FiuMode & EncoderAuxPush)
@@ -445,7 +441,7 @@ void loop()
       TftPipPrint("Hz",FrequencyStepValue[1]);
     }
   }  
-}
+ */}
 
 //#=================================================================================
 // CheckControllPanel
@@ -466,11 +462,11 @@ void CheckControllPanel()
       //Prepara l'aggiornamento del TfT
       if (FiuMode & B10000000)
       {
-        TftStatus = PipSweepRequest;
+        TftStatus = FixedFreqRequest;
       }
       else
       {
-        TftStatus = PipFixedFreqRequest;
+        TftStatus = SweepRequest;
       }
       //Aggiorna il display TFT
       TftGraphInit();
@@ -488,7 +484,39 @@ void CheckControllPanel()
 //#=================================================================================
 //#
 //#=================================================================================
-
+void FreqEncoderPush()
+{
+  //Se la PiP non è stata creata la crea egli assegna il titolo, il primo valore
+  //e l'unità di misura
+  if (TftStatus == PipMainFreqOff)
+  {
+    TftPipCreate("F Step");
+    //Forza lo stato della PiP in Da Aggiornare
+    TftStatus = PipRequestRefresh;
+    //e lo aggiorna
+    TftPipPrint("Hz",FrequencyStepValue);
+  }
+  //Elimina i segnali dell'encoder ausiliario
+  RotaryState = RotaryState & B00000011;
+//  FrequencyDisplay.printDigit(RotaryState,0);
+  if ((TftStatus == PipMainFreqON) & (RotaryState != 0))
+  //Se la finetra PiP è attiva ed è stato ruotato l'encoder
+  {
+    //Attua la azione collegata alla rotazione della manopola
+    FrequencyStepEsponent[0] = RotaryTurnAction(FrequencyStepEsponent[0], 1.0, 0, 7);
+    FrequencyStepValue[0] = 1;
+    for (uint8_t ii = FrequencyStepEsponent[0]; ii != 0; ii--)
+    {
+      FrequencyStepValue[0] = FrequencyStepValue[0] * 10.0;
+    } 
+    //Aggiorna la visualizzazione dei limiti
+    TftFrequencyLimit(); 
+    //Forza lo stato della PiP in "Da Aggiornare"
+    TftStatus = PipRequestRefresh;
+    //e lo aggiorna
+    TftPipPrint("Hz",FrequencyStepValue[0]);
+  }
+}
 
 
 void CheckRotaryMode()
@@ -1069,18 +1097,19 @@ void TftDrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 //#=================================================================================
 void TftGraphInit()
 {
+  //Controlla se è stato richiesto un aggiornamento del Display
   if (TftStatus & B11000000)
   {
-    //Inizializza il display tft con gli elementi per la modalità Fixed Frequency
+    //Inizializza il display tft con gli elementi comuni
     tft.fillScreen(ST77XX_BLACK);
-    tft.setTextSize(1);
-    tft.drawLine(0,12, 159,12,ST77XX_WHITE);//Delimitatore inferiore campo MODO
+    tft.drawLine(0,19, 159,19,ST77XX_WHITE);//Delimitatore inferiore campo MODO
     tft.drawRect(0,139,42,20,ST77XX_WHITE);//Funzione F1
     tft.drawRect(42,139,43,20,ST77XX_WHITE);//Funzione F2
     tft.drawRect(85,139,43,20,ST77XX_WHITE);//Funzione F3
     tft.drawRect(0,106,75,33,ST77XX_WHITE);//Limiti di frequenza
     tft.drawRect(75,106,53,33,ST77XX_WHITE);//Forma d'onda (Grafica)
     //Scrive la modalità sul TFT
+    tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
     tft.setCursor(18,141);
     tft.print("F1");
@@ -1090,17 +1119,32 @@ void TftGraphInit()
     tft.print("F2");    
     tft.setCursor(100,141);
     tft.print("F3");  
+    //Stampa i limiti di frequenza (servono in entrambe le modalità)
+    TftFrequencyLimit(); 
+    //Stampa la forma d'onda generata (serve in entrambe le modalità)
+    TftCurrentWave(0);
     tft.setCursor(0,0);
-    if(TftStatus & B01000000)
+    tft.setTextSize(2);
+    //Modalità Frequenza Fissa
+    if(TftStatus & B10000000)
     {
-      tft.drawLine(0,24, 159,24,ST77XX_WHITE);//Delimitatore inferiore campo MODALITA' per SWEEP
-      tft.print(GlobalModeLabel[GlobalModeSwee]);
+      //Aggiunge gli elementi specifici per la Fixed Frequency
+      tft.print(GlobalModeLabel[GlobalModeFixFrequency]);
+
     } 
     else
+    //Aggiunge gli elementi specifici per la Sweep
     {
-      tft.print(GlobalModeLabel[GlobalModeFixFrequency]);
+      tft.print(GlobalModeLabel[GlobalModeSweep]);
+      tft.drawRect(0,19,75,33,ST77XX_WHITE);//Limiti di frequenza
+      tft.drawRect(75,19,53,33,ST77XX_WHITE);//Forma d'onda (Grafica)
+      tft.setCursor(43,151);
+      tft.setTextSize(1);
+      tft.print("Sw.Mode");
+
     }
-    
+  //Segnala che l'aggiornamento del TfT è stato effettuato
+  TftStatus = TftStatus & B00111111;
   }
 }
 
