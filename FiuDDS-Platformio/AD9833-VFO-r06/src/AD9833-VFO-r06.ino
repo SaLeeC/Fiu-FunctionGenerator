@@ -60,10 +60,10 @@
 
 #define FixedFrequency 0
 #define Swepp 128
-#define SweepLtoH 0
-#define SweepHtoL 32
-#define SweepLtoHtoL 64
 #define SweepCenter 96
+#define SweepLtoHtoL 64
+#define SweepHtoL 32
+#define SweepLtoH 0
 #define EncoderAuxNormal 0
 #define EncoderAuxPush 2
 #define EncoderFrequencyNormal 0
@@ -336,6 +336,14 @@ void setup()
 
   //Inizializza il display TfT con la grafica per modalià Fixed Frequency
   TftGraphInit();
+
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.printDigit(1000,0);
+  FrequencyDisplay.clear(1);
+  delay(500);
+  FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(FiuMode,1);
+  delay(2000);
 }
 
 
@@ -348,18 +356,25 @@ void loop()
   //Controlla se è stato premuto il bottone per modificare la modalità di
   //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT
   CheckControllPanel();
+
   FrequencyDisplay.clear(0);
+  FrequencyDisplay.printDigit(1001,0);
   FrequencyDisplay.clear(1);
   delay(500);
-  FrequencyDisplay.printDigit(FiuMode,0);
-  FrequencyDisplay.printDigit(TftStatus,1);
+  FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(FiuMode,1);
 
   delay(2000);
 
   //Controlla se gli encoder sono premuti
   RotaryPush();
 
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.printDigit(1002,0);
+  FrequencyDisplay.clear(1);
+  delay(500);
   FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(FiuMode,1);
 
   //controlla se è premuto l'encoder principale (frequenza)
   //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
@@ -374,7 +389,12 @@ void loop()
     //Richiede l'aggiornamento della finestra di base
     TftStatus = TftStatus | B10000000;
 
-    FrequencyDisplay.printDigit(TftStatus,1);
+  FrequencyDisplay.clear(0);
+  FrequencyDisplay.printDigit(1003,0);
+  FrequencyDisplay.clear(1);
+  delay(500);
+  FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(FiuMode,1);
 
     //Ricrea la finestra di base
     TftGraphInit();
@@ -460,13 +480,13 @@ void CheckControllPanel()
       //Inverte la modalità di funzionamento (fixed / Sweep)
       bitWrite(FiuMode,7,(!bitRead(FiuMode,7)));
       //Prepara l'aggiornamento del TfT
-      if (FiuMode & B10000000)
+      if (FiuMode & B10000000)//128 in FiuMode = Sweep
       {
-        TftStatus = FixedFreqRequest;
+        TftStatus = SweepRequest;
       }
       else
       {
-        TftStatus = SweepRequest;
+        TftStatus = FixedFreqRequest;
       }
       //Aggiorna il display TFT
       TftGraphInit();
@@ -722,11 +742,6 @@ void SevenSegHello()
     FrequencyDisplay.write(ii+1,pgm_read_word_near(FHello+(Digit4Display+ii)),1);        
   }
 }
-
-
-
-
-
 
 //-----------------------------------------------------------------------------
 // DrawArrowFDisplay
