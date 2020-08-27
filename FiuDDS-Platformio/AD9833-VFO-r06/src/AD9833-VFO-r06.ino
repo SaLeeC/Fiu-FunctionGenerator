@@ -336,7 +336,7 @@ void setup()
 
   //Inizializza il display TfT con la grafica per modalià Fixed Frequency
   TftGraphInit();
-
+/* 
   FrequencyDisplay.clear(0);
   FrequencyDisplay.printDigit(1000,0);
   FrequencyDisplay.clear(1);
@@ -344,6 +344,7 @@ void setup()
   FrequencyDisplay.printDigit(TftStatus,0);
   FrequencyDisplay.printDigit(FiuMode,1);
   delay(2000);
+ */
 }
 
 
@@ -357,45 +358,58 @@ void loop()
   //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT
   CheckControllPanel();
 
-  FrequencyDisplay.clear(0);
+/*   FrequencyDisplay.clear(0);
   FrequencyDisplay.printDigit(1001,0);
   FrequencyDisplay.clear(1);
   delay(500);
-  FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(9000+TftStatus,0);
   FrequencyDisplay.printDigit(FiuMode,1);
-
+ 
   delay(2000);
-
+*/
   //Controlla se gli encoder sono premuti
   RotaryPush();
 
-  FrequencyDisplay.clear(0);
+/*   FrequencyDisplay.clear(0);
   FrequencyDisplay.printDigit(1002,0);
   FrequencyDisplay.clear(1);
   delay(500);
-  FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(9000+TftStatus,0);
   FrequencyDisplay.printDigit(FiuMode,1);
-
+  delay(2000);
+ */
   //controlla se è premuto l'encoder principale (frequenza)
   //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
   if (FiuMode & EncoderFrequencyPush)
   {
     FreqEncoderPush();
   }
+  //Se si è APPENA tornati dalla modalità PUSH alla modalità NORMALE
   if (((FiuMode & EncoderFrequencyPush) == 0) & (TftStatus & PipMainFreqON))
   {
     //Segna come spenta la PiP
-    TftStatus = TftStatus & B11111110;
-    //Richiede l'aggiornamento della finestra di base
-    TftStatus = TftStatus | B10000000;
+    TftStatus = bitClear(TftStatus,0);
+    //Richiede l'aggiornamento della finestra di base per la MOdalità corrente
+    //Se è in modalità Sweep
+    if (FiuMode & B10000000)
+    {
+      TftStatus = bitSet(TftStatus, 6);
+    }
+    //altrimenti è in modalità Fixed Frequency
+    else
+    {
+      TftStatus = bitSet(TftStatus, 7);
+    }
+    
 
-  FrequencyDisplay.clear(0);
+/*   FrequencyDisplay.clear(0);
   FrequencyDisplay.printDigit(1003,0);
   FrequencyDisplay.clear(1);
   delay(500);
-  FrequencyDisplay.printDigit(TftStatus,0);
+  FrequencyDisplay.printDigit(9000+TftStatus,0);
   FrequencyDisplay.printDigit(FiuMode,1);
-
+  delay(2000);
+ */
     //Ricrea la finestra di base
     TftGraphInit();
 
@@ -461,7 +475,8 @@ void loop()
       TftPipPrint("Hz",FrequencyStepValue[1]);
     }
   }  
- */}
+ */
+}
 
 //#=================================================================================
 // CheckControllPanel
