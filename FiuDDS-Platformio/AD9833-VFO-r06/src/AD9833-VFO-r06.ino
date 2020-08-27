@@ -384,6 +384,7 @@ void loop()
   {
     FreqEncoderPush();
   }
+
   //Se si è APPENA tornati dalla modalità PUSH alla modalità NORMALE
   if (((FiuMode & EncoderFrequencyPush) == 0) & (TftStatus & PipMainFreqON))
   {
@@ -400,16 +401,7 @@ void loop()
     {
       TftStatus = bitSet(TftStatus, 7);
     }
-    
 
-/*   FrequencyDisplay.clear(0);
-  FrequencyDisplay.printDigit(1003,0);
-  FrequencyDisplay.clear(1);
-  delay(500);
-  FrequencyDisplay.printDigit(9000+TftStatus,0);
-  FrequencyDisplay.printDigit(FiuMode,1);
-  delay(2000);
- */
     //Ricrea la finestra di base
     TftGraphInit();
 
@@ -418,7 +410,15 @@ void loop()
   //Se è vero è in modalità SWEEP
   if (FiuMode & B10000000)
   {
-
+    //Controlla se l'encoder ausiliario è premuto
+    RotaryPush();
+    //controlla se è premuto l'encoder principale (frequenza)
+    //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
+    if (FiuMode & EncoderAuxPush)
+    {
+      FreqEncoderPush();
+    }
+  
   }
   //Se è falso è in modalità Fixed Frequency
   else
@@ -529,16 +529,15 @@ void FreqEncoderPush()
     //Forza lo stato della PiP in Da Aggiornare
     TftStatus = PipRequestRefresh;
     //e lo aggiorna
-    TftPipPrint("Hz",FrequencyStepValue);
+    TftPipPrint("Hz",FrequencyStepValue[0]);
   }
   //Elimina i segnali dell'encoder ausiliario
   RotaryState = RotaryState & B00000011;
-//  FrequencyDisplay.printDigit(RotaryState,0);
   if ((TftStatus == PipMainFreqON) & (RotaryState != 0))
   //Se la finetra PiP è attiva ed è stato ruotato l'encoder
   {
     //Attua la azione collegata alla rotazione della manopola
-    FrequencyStepEsponent[0] = RotaryTurnAction(FrequencyStepEsponent[0], 1.0, 0, 7);
+    FrequencyStepEsponent[0] = RotaryTurnAction(FrequencyStepEsponent[0], 1.0, 0, 6);
     FrequencyStepValue[0] = 1;
     for (uint8_t ii = FrequencyStepEsponent[0]; ii != 0; ii--)
     {
@@ -554,109 +553,7 @@ void FreqEncoderPush()
 }
 
 
-void CheckRotaryMode()
-{
-    switch (GlobalMode)
-    {
-      case GlobalModeFixFrequency:
-//        Serial.println("Global 0 Wave");
-        //Ruota in senso orario -> Aumenta il parametro del modo corrente
-        if ( ModeRotaryState == 1 ) 
-        {
-          FrequencyWaveCurrentType[0]++;
-        }
 
-        //Ruota in senso antiorario -> Diminuisce la frequenza
-        if ( ModeRotaryState == 2 ) 
-        {
-          FrequencyWaveCurrentType[0]--;
-        }
-  
-
-        //Controlla il fuori scala superiore
-        if (FrequencyWaveCurrentType[0]>=WaveTypeNumber)
-        {
-          FrequencyWaveCurrentType[0] = 0;
-        }
-
-        //Controlla il fuori scala inferiore
-        if (FrequencyWaveCurrentType[0]<0)
-        {
-          FrequencyWaveCurrentType[0] = WaveTypeNumber-1;
-        }
-
-        //Setta frequenza e forma d'onda
-        TftCurrentWave(FrequencyWaveCurrentType[0]);
-    
-        AD9833FreqSet(Frequency[0][0],FrequencyWaveType[FrequencyWaveCurrentType[0]],0);
-        //Aggiorna il display
-        DisplayFrequency(CurrentGenerator);
-        break;
-      case GlobalModeSweepLtH:
-//        Serial.println("Global 1 Sweep time");
-        //Ruota in senso orario -> Aumenta il parametro del modo corrente
-        if ( ModeRotaryState == 1 ) 
-        {
-          SweepTime+=pow(10,SweepTimeStep);
-        }
-
-        //Ruota in senso antiorario -> Diminuisce la frequenza
-        if ( ModeRotaryState == 2 ) 
-        {
-          SweepTime-=pow(10,SweepTimeStep);
-        }
-  
-        //Controlla il fuori scala superiore
-        if (SweepTime>=65500)
-        {
-          SweepTime = 1;
-        }
-
-        //Controlla il fuori scala inferiore
-        if (SweepTime<1)
-        {
-          SweepTime = 65500;
-        }
-        DrawSweepTime(10,60, SweepTime);
-        
-        break;
-      case GlobalModeModulation:
-        //Ruota in senso orario -> Aumenta il parametro del modo corrente
-        if ( ModeRotaryState == 1 ) 
-        {
-          Frequency[1][0]++;
-        }
-
-        //Ruota in senso antiorario -> Diminuisce la frequenza
-        if ( ModeRotaryState == 2 ) 
-        {
-          Frequency[1][0]--;
-        }
-  
-
-        //Controlla il fuori scala superiore
-        if (Frequency[1][0]>=FrequencyLimit[FrequencyWaveCurrentType[1]][1])
-        {
-          Frequency[1][0] = FrequencyLimit[FrequencyWaveCurrentType[1]][0];
-        }
-
-        //Controlla il fuori scala inferiore
-        if (Frequency[1][0]<FrequencyLimit[FrequencyWaveCurrentType[1]][0])
-        {
-          Frequency[1][0] = FrequencyLimit[FrequencyWaveCurrentType[1]][1];
-        }
-
-        //Setta frequenza e forma d'onda
-//        TftCurrentWave(FrequencyWaveCurrentType[1]);
-    
-        AD9833FreqSet(Frequency[1][0],FrequencyWaveType[FrequencyWaveCurrentType[1]],1);
-        //Aggiorna il display
-        DisplayFrequency(CurrentGenerator);
-        break;
-      default:
-        break;
-    }
-}
 
 //#=================================================================================
 //#DisplayFrequency(byte CurrentDisplay)
@@ -758,74 +655,6 @@ void SevenSegHello()
   }
 }
 
-//-----------------------------------------------------------------------------
-// DrawArrowFDisplay
-//    Draw on tft the Arrow to indicate the frequency display status
-//-----------------------------------------------------------------------------
-void DrawArrowFDisplay(uint8_t NumDisplay, uint8_t ModeDisplay)
-{
-  switch (NumDisplay)
-  {
-    case 1:
-    //Display 1 freccia ROSSA
-      tft.fillTriangle(0, 120, 10, 110, 10, 130, ST77XX_RED);
-      break;
-    case 2:
-    //Display 2 freccia ROSSA
-      tft.fillTriangle(0, 25, 10, 15, 10, 35, ST77XX_RED);
-      break;
-    case 3:
-    //Display 1 freccia VERDE
-      tft.fillTriangle(0, 120, 10, 110, 10, 130, ST77XX_GREEN);
-      break;
-    case 4:
-    //Display 2 freccia VERDE
-      tft.fillTriangle(0, 25, 10, 15, 10, 35, ST77XX_GREEN);
-      break;
-    case 9:
-    //Display 1 freccia NERA
-      tft.fillTriangle(0, 120, 10, 110, 10, 130, ST77XX_BLACK);
-      break;
-    case 10:
-    //Display 2 freccia NERA
-      tft.fillTriangle(0, 25, 10, 15, 10, 35, ST77XX_BLACK);
-      break;
-    default:
-      break;
-  }
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_BLACK);
-  switch (ModeDisplay)
-  {
-    case 1:
-    //Scrive 1 
-      tft.setCursor(4,117);
-      tft.print("1");
-      break;
-    case 2:
-    //Scrive 2 
-      tft.setCursor(4,23);
-      tft.print("2");
-      break;
-    case 3:
-    //Scrive L 
-      tft.setCursor(4,117);
-      tft.print("L");
-      break;
-    case 4:
-    //Scrive H 
-      tft.setCursor(4,23);
-      tft.print("H");
-      break;
-    case 9:
-      break;
-    case 10:
-      break;
-    default:
-      break;
-  }
-}
-
 
 //-----------------------------------------------------------------------------
 // GlobalModeDisplay
@@ -847,7 +676,7 @@ void GlobalModeDisplay()
       CurrentGenerator = 0;
       FrequencyDisplay.printDigit(Frequency[GlobalModeFixFrequency][CurrentGenerator], 0);
       //Freccia verde e numero 1 sul display 1
-      DrawArrowFDisplay(3,1);
+//      DrawArrowFDisplay(3,1);
       //Forma d'onda per il display 1
       TftCurrentWave(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       //Display frequenza 2 spento
@@ -869,9 +698,9 @@ void GlobalModeDisplay()
       DisplayFrequency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
-      DrawArrowFDisplay(1,3);
+//      DrawArrowFDisplay(1,3);
       //Freccia verde e lettera H sul display 2
-      DrawArrowFDisplay(4,4);
+//      DrawArrowFDisplay(4,4);
       //Forma d'onda per il display 1
       TftCurrentWave(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       DrawSweepTime(10,60, SweepTime);
@@ -895,9 +724,9 @@ void GlobalModeDisplay()
       DisplayFrequency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
-      DrawArrowFDisplay(1,3);
+//      DrawArrowFDisplay(1,3);
       //Freccia verde e lettera H sul display 2
-      DrawArrowFDisplay(4,4);
+//      DrawArrowFDisplay(4,4);
       //Forma d'onda per il display 1
       TftCurrentWave(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       DrawSweepTime(10,60, SweepTime);
@@ -921,9 +750,9 @@ void GlobalModeDisplay()
       DisplayFrequency(CurrentGenerator);
       delay(10);
       //Freccia rossa e lettera L sul display 1
-      DrawArrowFDisplay(1,3);
+//      DrawArrowFDisplay(1,3);
       //Freccia verde e lettera H sul display 2
-      DrawArrowFDisplay(4,4);
+//      DrawArrowFDisplay(4,4);
       //Forma d'onda per il display 1
       TftCurrentWave(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       DrawSweepTime(10,60, SweepTime);
@@ -938,9 +767,9 @@ void GlobalModeDisplay()
     case GlobalModeModulation:
     //Generazione con modulazione fra F1 e F2
       //Freccia verde e lettera 1 sul display 1
-      DrawArrowFDisplay(3,1);
+//      DrawArrowFDisplay(3,1);
       //Freccia verde e lettera 2 sul display 2
-      DrawArrowFDisplay(4,2);
+//      DrawArrowFDisplay(4,2);
       //Forma d'onda per il display 1
       TftCurrentWave(FrequencyWaveType[FrequencyWaveCurrentType[CurrentGenerator]]);
       Frequency[1][0]= FrequencyLimit[FrequencyWaveCurrentType[1]][1];
@@ -1029,7 +858,7 @@ void TftFrequencyLimit()
   tft.setCursor(2,119);
   tft.print("Step");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(59, 119, 1, int(FrequencyStepValue));
+  TftPrintIntDxGiustify(59, 119, 1, FrequencyStepValue[0]);
   tft.setCursor(59,119);
   tft.print("Hz");
   tft.setCursor(2,110);
@@ -1038,6 +867,35 @@ void TftFrequencyLimit()
   TftPrintIntDxGiustify(59, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
   tft.setCursor(59,110);
   tft.print("MHz");
+  //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
+  if (bitRead(FiuMode,7) & ((TftStatus & B00000111) == 0)) 
+  {
+    //Cancella il simbolo precedente
+    tft.fillRect(1,20,51, 31, ST77XX_BLACK);
+    //Cancella i limiti precedenti
+    tft.fillRect(1,20, 73, 31, ST77XX_BLACK);
+    //Scrive i limiti di frequenza impostati
+    tft.setTextSize(1);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setCursor(2,43);
+    tft.print("min");
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(59, 43, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+    tft.setCursor(59,43);
+    tft.print("Hz");
+    tft.setCursor(2,34);
+    tft.print("Step");
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(59, 34, 1, FrequencyStepValue[1]);
+    tft.setCursor(59,34);
+    tft.print("Hz");
+    tft.setCursor(2,25);
+    tft.print("MAX");
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(59, 25, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+    tft.setCursor(59,25);
+    tft.print("MHz");
+  }
 }
 
 //-----------------------------------------------------------------------------
