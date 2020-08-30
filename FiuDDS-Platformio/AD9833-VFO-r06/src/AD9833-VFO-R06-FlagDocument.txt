@@ -1,0 +1,101 @@
+//#=================================================================================
+// TFT Controll area
+// Lo stato del TFT è gestito tramite una parola al fine di rendere più semplice 
+//il controllo degli stati e l'attivazione dei moduli di programma 
+//#=================================================================================
+// TftStatus
+// bit 7 
+//            0 Fixed Frequency Display Stay
+//            1 Fixed Frequency Display Request
+// bit 6
+//            0 Sweep Frequency Display Stay
+//            1 Sweep Frequency Display Request
+// bit 5
+// bit 4
+// bit 3     0 PiP Display Stay
+//           1 PiP Display Refresh
+// bit 2
+// bit 1-0
+//           0 PiP Step OFF
+//           1 PiP Main Frequency Step ON
+//           2 PiP Aux Frequency Step ON
+//           3 PiP Sweep Time Step ON
+//
+
+#define PipMainFreqOff 0
+#define PipMainFreqON 1
+#define PipAuxFreqON 2
+#define PipRequestRefresh 4
+#define FixedFreqRequest 128
+#define SweepRequest 64
+uint8_t TftStatus = FixedFreqRequest;
+
+//#=================================================================================
+// General Controll area
+// Lo stato del generatore e delle funzioni di controllo
+//Sono gestite tramite una parola al fine di rendere più semplice il controllo
+//degli stati e l'attivazione dei moduli di programma 
+//#=================================================================================
+// FiuMode
+// bit 7 
+//            0 Fixed Frequency
+//            1 Sweep
+// bit 6-5
+//            0 L to H
+//            1 H to L
+//            2 L to H to L
+//            3 Center +- Delta
+// bit 4
+// bit 3
+// bit 2
+//           0 Encoder Sweep Time Normal
+//           1 Encoder Sweep Time Push
+// bit 1
+//           0 Encoder Aux Normal
+//           1 Encoder Aux Push
+// bit 0 
+//           0 Encoder Frequency Normal
+//           1 Encoder Frequency Push
+//
+
+#define FixedFrequency 0
+#define Swepp 128
+#define SweepCenter 96
+#define SweepLtoHtoL 64
+#define SweepHtoL 32
+#define SweepLtoH 0
+#define EncoderAuxNormal 0
+#define EncoderAuxPush 2
+#define EncoderFrequencyNormal 0
+#define EncoderFrequencyPush 1
+uint8_t FiuMode = FixedFrequency +
+                  SweepLtoH +
+                  EncoderAuxNormal +
+                  EncoderFrequencyNormal;
+
+//#=================================================================================
+// Encoder Rotary controll area
+// Lo stato degli encoder (rotazione CCW - 0 - Rotazione CW) è gestita tramite una
+// parola al fine di rendere più semplice il controllo degli stati e l'attivazione
+// dei moduli di programma 
+//#=================================================================================
+// RotaryState
+// bit 7 
+//            0 Fixed Frequency
+//            1 Sweep
+// bit 6
+// bit 5-4
+//           0 Encoder Sweep Time No Turn
+//           1 Encoder Sweep Time CW
+//           2 Encoder Sweep Time CCW
+// bit 3-2
+//           0 Encoder Aux No Turn
+//           1 Encoder Aux CW
+//           2 Encoder Aux CCW
+// bit 1-0
+//           0 Encoder Frequency No Turn
+//           1 Encoder Frequency CW
+//           2 Encoder Frequency CCW
+//
+
+uint8_t RotaryState = PushOff;
