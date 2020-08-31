@@ -388,7 +388,6 @@ void loop()
 //Modifico il flusso perchè la prima parte del controllo è il falso del controllo precedente
 //per cui sostituisco la prima parte del controllo con else
 //  //Se si è APPENA tornati dalla modalità PUSH alla modalità NORMALE
-//  if (((FiuMode & EncoderFrequencyPush) == 0) & (TftStatus & PipMainFreqON))
   else
   {
     if (TftStatus & PipMainFreqON)
@@ -516,6 +515,8 @@ void FreqEncoderPush()
   }
   else
   {
+//Prova rotaryTurn()
+    RotaryTurn();
     //Se la finestra PiP è attiva ed è stato ruotato l'encoder
     if ((RotaryState & B00000011)!=0)
     {
@@ -1038,10 +1039,16 @@ void RotaryPush()
       //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
       if (AuxRotary.push() == 1)
       {
+        FrequencyDisplay.printDigit(FiuMode,0);
+        delay(2000);
+        FrequencyDisplay.clear(0);
+        delay(1000);
         //Disattiva lo stato del bit 1
         bitClear(FiuMode,1);
         //Fa un ritardo arbitrario per evitare eventuali spurie
         delay(50);
+        FrequencyDisplay.printDigit(FiuMode,0);
+        delay(2000);
       }
       break;
     case 4:
