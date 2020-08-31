@@ -84,8 +84,8 @@ uint8_t FiuMode = FixedFrequency +
 #define AD9833FSYNC 12  ///< SPI Load pin number (FSYNC in AD9833 usage)
 
 //Generatore 0 Bassa Frequenza (1Hz to 12.5MHz)
-//MD_AD9833  AD(FSYNC); // Hardware SPI
-MD_AD9833 AD(AD9833DATA, AD9833CLK, AD9833FSYNC); // Arbitrary SPI pins
+MD_AD9833  AD(AD9833FSYNC); // Hardware SPI
+//MD_AD9833 AD(AD9833DATA, AD9833CLK, AD9833FSYNC); // Arbitrary SPI pins
 MD_AD9833::channel_t chan;
 
 const int wSine     = 0b0000000000000000;
