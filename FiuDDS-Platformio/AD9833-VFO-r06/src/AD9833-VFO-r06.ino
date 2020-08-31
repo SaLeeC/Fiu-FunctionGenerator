@@ -514,25 +514,62 @@ void FreqEncoderPush()
     TftPopPrint("Hz",FrequencyStepValue[Indice]);
   }
   else
+  //Se una PiP è attiva la gestisce
   {
-//Prova rotaryTurn()
+    //Legge la rotazione degli encoder
     RotaryTurn();
     //Se la finestra PiP è attiva ed è stato ruotato l'encoder
-    if ((RotaryState & B00000011)!=0)
+    if (RotaryState != 0)
     {
-      //Attua la azione collegata alla rotazione della manopola
-      FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
-      FrequencyStepValue[Indice] = 1;
-      for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
-      {
-        FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
-      } 
-      //Aggiorna la visualizzazione dei limiti
-      TftFrequencyLimit(); 
-      //Forza lo stato della PiP in "Da Aggiornare"
-      bitSet(TftStatus,3);
-      //e lo aggiorna
-      TftPopPrint("Hz",FrequencyStepValue[Indice]);
+    switch (TftStatus & B00000011)
+    {
+      case 1:
+        //Pulisce i dati provenienti dagli encoder Aux e Sweep Time
+        RotaryState = RotaryState & B00000011;
+        //Attua la azione collegata alla rotazione della manopola
+        FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
+        FrequencyStepValue[Indice] = 1;
+        for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
+        {
+          FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
+        } 
+        //Aggiorna la visualizzazione dei limiti
+        TftFrequencyLimit(); 
+        //Forza lo stato della PiP in "Da Aggiornare"
+        bitSet(TftStatus,3);
+        //e lo aggiorna
+        TftPopPrint("Hz",FrequencyStepValue[Indice]);
+        break;
+      case 2:
+        //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
+        RotaryState = RotaryState >> 2;
+        RotaryState = RotaryState & B00000011;
+        FrequencyDisplay.printDigit(RotaryState,0);
+        delay(2000);
+
+        //Attua la azione collegata alla rotazione della manopola
+        FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
+        FrequencyStepValue[Indice] = 1;
+        for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
+        {
+          FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
+        } 
+        //Aggiorna la visualizzazione dei limiti
+        TftFrequencyLimit(); 
+        //Forza lo stato della PiP in "Da Aggiornare"
+        bitSet(TftStatus,3);
+        //e lo aggiorna
+        TftPopPrint("Hz",FrequencyStepValue[Indice]);
+        break;
+      case 3:
+        //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
+        RotaryState = RotaryState >> 4;
+        RotaryState = RotaryState & B00000011;
+        //Attua la azione collegata alla rotazione della manopola
+        break;
+      default:
+        break;
+    }
     }
   }
 }
@@ -1111,7 +1148,8 @@ void RotaryTurn()
   //Legge l'encoder principale (Frequenza)
   RotaryState = FrequencyRotary.rotate();
   //Legge l'encoder ausiliario ()
-  RotaryState += (16*AuxRotary.rotate());
+  RotaryState = RotaryState + (4*AuxRotary.rotate());
+  FrequencyDisplay.printDigit(RotaryState,1);
 }
 
 //#=================================================================================
