@@ -380,7 +380,7 @@ void loop()
 
   //controlla se è premuto l'encoder principale (frequenza)
   //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
-  if (FiuMode & EncoderFrequencyPush)
+  if (bitRead(FiuMode,0))
   {
     FreqEncoderPush();
   }
@@ -433,8 +433,6 @@ void loop()
 
 
 
-  //Controlla se gli encoder sono stati ruotati
-  RotaryTurn();
 
 }
 
@@ -445,29 +443,38 @@ void loop()
 //#=================================================================================
 void CheckControllPanel()
 {
-  //Controlla lo stato del bottone di cambio GlobalMode e se non è premuto passa avanti
-  if(digitalRead(PushGlobalMode)==LOW)
+  //Il cambio di modalità di funzionamento è possibile SOLO se non c'è nessun push
+  //attivo
+  if ((FiuMode & B00000111) != 0)
   {
-    //Antiounce
-    delay(AntiBounceDelay);
+    //cancella la dicitura F1 -> Mode
+  }
+  else
+  {
+    //Controlla lo stato del bottone di cambio GlobalMode e se non è premuto passa avanti
     if(digitalRead(PushGlobalMode)==LOW)
     {
-      //Inverte la modalità di funzionamento (fixed / Sweep)
-      bitWrite(FiuMode,7,(!bitRead(FiuMode,7)));
-      //Prepara l'aggiornamento del TfT
-      if (FiuMode & B10000000)//128 in FiuMode = Sweep
+      //Antiounce
+      delay(AntiBounceDelay);
+      if(digitalRead(PushGlobalMode)==LOW)
       {
-        TftStatus = SweepRequest;
-      }
-      else
-      {
-        TftStatus = FixedFreqRequest;
-      }
-      //Aggiorna il display TFT
-      TftGraphInit();
-      //Aspetta il rilascio del pulsante
-      while(digitalRead(PushGlobalMode)==LOW)
-      {
+        //Inverte la modalità di funzionamento (fixed / Sweep)
+        bitWrite(FiuMode,7,(!bitRead(FiuMode,7)));
+        //Prepara l'aggiornamento del TfT
+        if (FiuMode & B10000000)//128 in FiuMode = Sweep
+        {
+          TftStatus = SweepRequest;
+        }
+        else
+        {
+          TftStatus = FixedFreqRequest;
+        }
+        //Aggiorna il display TFT
+        TftGraphInit();
+        //Aspetta il rilascio del pulsante
+        while(digitalRead(PushGlobalMode)==LOW)
+        {
+        }
       }
     }
   }
@@ -482,6 +489,7 @@ void CheckControllPanel()
 void FreqEncoderPush()
 {
   uint8_t Indice = 0;
+  //Converte i tre bit di stato nell'indice per gli array associati agli encoder  
   switch (FiuMode & B0000111)
   {
   case 1:
@@ -498,10 +506,9 @@ void FreqEncoderPush()
   }
   //Se nessuna PiP non è stata creata la crea egli assegna il titolo, il primo valore
   //e l'unità di misura
-//  if (!(TftStatus & B00000001))
   if ((TftStatus & B0000011) == 0)
   {
-    TftPipCreate(FrequencyStepLabel[Indice]);
+    TftPipCreate(Indice);
     //Forza lo stato della PiP in Da Aggiornare
     bitSet(TftStatus,3);
     //e lo aggiorna
@@ -898,7 +905,7 @@ void TftGraphInit()
 //#=================================================================================
 //#
 //#=================================================================================
-void TftPipCreate(char *Titolo)
+void TftPipCreate(uint8_t Titolo)
 {
 #define PipRadius 5
 #define XPip 0
@@ -913,12 +920,15 @@ void TftPipCreate(char *Titolo)
   tft.setTextSize(2);
   tft.setTextColor(ST7735_BLACK);
   tft.setCursor(10,35);
-  tft.print(Titolo);
+  tft.print(FrequencyStepLabel[Titolo]);
   tft.drawRoundRect((XPip + 5),YPipValue,PipLarg,PipHight,PipRadius,ST77XX_WHITE);
   tft.fillRoundRect((XPip + 6),66,(PipLarg-2),(PipHight-2),PipRadius,ST77XX_BLUE);
   tft.drawRoundRect(XPip,60,PipLarg,PipHight,PipRadius,ST77XX_BLACK);
   tft.fillRoundRect((XPip + 1),61,(PipLarg-2),(PipHight-2),PipRadius,ST77XX_YELLOW);
-  TftStatus = PipMainFreqON;
+  //Azzera lo stato precedente delle PiP (misura cautelativa)
+  TftStatus = TftStatus & B11111100;
+  //Setta lo stato delle PiP alla condizione attuale
+  TftStatus = TftStatus | (Titolo+1);
 }
 
 //#=================================================================================
@@ -931,7 +941,6 @@ void TftPipPrint(char *UnitaMisura, uint32_t Misura)
 #define PipFontY 65
 #define PipEndArea 122
   //Aggiorna il contenuto del PiP SOLO se richiesto
-//  if(TftStatus == PipRequestRefresh)
   if(bitRead(TftStatus,3))
   {
     tft.setTextSize(2);//Moltiplica la dimensione del font di default (5*8)
@@ -951,7 +960,8 @@ void TftPipPrint(char *UnitaMisura, uint32_t Misura)
     //Stampa il valore allineato a Dx tramite la routines specializzata
     TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura);
     //Indica che il PiP è attivo ed è stato attualizzato il valore presentato
-    TftStatus = PipMainFreqON;
+//    TftStatus = PipMainFreqON;
+    bitClear(TftStatus,3);
   }
 }
   
@@ -1010,23 +1020,79 @@ void SetupIO()
 //#=================================================================================
 void RotaryPush()
 {
+  //Se c'è un push attivo deve essere gestito solo quello e se ci sono più push
+  //attivi vengono resettati
+  switch (FiuMode & B00000111)
+  {
+    case 1: //Push della frequenza principale attivo
+      //La frequenza principale può andare in modalità Push in tutti le modalità 
+      if (FrequencyRotary.push() == 1)
+      {
+        //Disattiva lo stato del bit 0
+        bitClear(FiuMode,0);
+        //Fa un ritardo arbitrario per evitare eventuali spurie
+        delay(50);
+      }
+      break;
+    case 2:
+      //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
+      if (AuxRotary.push() == 1)
+      {
+        //Disattiva lo stato del bit 1
+        bitClear(FiuMode,1);
+        //Fa un ritardo arbitrario per evitare eventuali spurie
+        delay(50);
+      }
+      break;
+    case 4:
+      //Il tempo di Sweep può andare in modalità Push solo in modalità Sweep
+/*    Da definire il terzo encoder   
+      if (AuxRotary.push() == 1)
+      {
+        //Disattiva lo stato del bit 1
+        bitClear(FiuMode,1);
+        //Fa un ritardo arbitrario per evitare eventuali spurie
+        delay(50);
+      }
+ */
+      break;
+    default: //Resetta tutti i push
+      FiuMode = FiuMode & B11111000;
+      break;
+  }
+  //Se non c'è nessun Push attivo verifica se deve attivarne uno
+  //La sequanza di push è Frequency; Aux; Sweep Time ed è condizionata 
+  //dalla modalità di funzionamento corrente
   if (FrequencyRotary.push() == 1)
   {
-    //Inverte lo stato del bit 0 di FrequencyRotaryPushStatus
-    bitWrite(FiuMode,0,(!bitRead(FiuMode,0)));
-    //Fa un ritardo arbitrario per evitare eventuali spurie
-    delay(100);
+    bitSet(FiuMode,0);
+    delay(50);
   }
   else
   {
-    if (AuxRotary.push() == 1)
+    if (FiuMode & B10000000)
     {
-      //Inverte lo stato del bit 0 di FrequencyRotaryPushStatus
-      bitWrite(FiuMode,1,(!bitRead(FiuMode,1)));
-      //Fa un ritardo arbitrario per evitare eventuali spurie
-      delay(100);
+      if (AuxRotary.push() == 1)
+      {
+        //Disattiva lo stato del bit 1
+        bitSet(FiuMode,1);
+        //Fa un ritardo arbitrario per evitare eventuali spurie
+        delay(50);
+      }
+/*    Da definire il terzo encoder
+      if (AuxRotary.push() == 1)
+      {
+        //Disattiva lo stato del bit 1
+        bitSet(FiuMode,1);
+        //Fa un ritardo arbitrario per evitare eventuali spurie
+        delay(50);
+      }
+ */      
+
     }
   }
+  
+
 }
 
 
