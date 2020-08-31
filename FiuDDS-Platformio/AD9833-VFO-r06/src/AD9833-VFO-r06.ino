@@ -512,7 +512,7 @@ void FreqEncoderPush()
     //Forza lo stato della PiP in Da Aggiornare
     bitSet(TftStatus,3);
     //e lo aggiorna
-    TftPipPrint("Hz",FrequencyStepValue[Indice]);
+    TftPopPrint("Hz",FrequencyStepValue[Indice]);
   }
   else
   {
@@ -531,7 +531,7 @@ void FreqEncoderPush()
       //Forza lo stato della PiP in "Da Aggiornare"
       bitSet(TftStatus,3);
       //e lo aggiorna
-      TftPipPrint("Hz",FrequencyStepValue[Indice]);
+      TftPopPrint("Hz",FrequencyStepValue[Indice]);
     }
   }
 }
@@ -934,7 +934,7 @@ void TftPipCreate(uint8_t Titolo)
 //#=================================================================================
 //#
 //#=================================================================================
-void TftPipPrint(char *UnitaMisura, uint32_t Misura)
+void TftPopPrint(char *UnitaMisura, uint32_t Misura)
 {
 #define FontLarg 12
 #define PipEndSpace 2
