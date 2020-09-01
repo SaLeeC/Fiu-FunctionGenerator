@@ -1,5 +1,7 @@
 #include<Arduino.h>
 #include<Wire.h>
+void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value, uint8_t SimbUnitaMisura = 255);
+
 /*
  * FIU
  * VFO a larga banda
@@ -265,8 +267,8 @@ uint8_t TftStatus = FixedFreqRequest;
 #define MUL {' ', 'k', 'M'}
 #define DIV {'u', 'm', ' '}
 // PROGMEM
-const char StrMoltUnit[][3] = {[HZ]=MUL, [Sec]=DIV };
-const char StrSimbUnit [][3] = {"Hz", "s"};
+const char StrMoltUnit[][3] = {[HZ]=MUL, [Sec]=DIV};
+const char *StrSimbUnit[] = {[HZ]="Hz", [Sec]="s"};
 
 //#=================================================================================
 // Encoder Rotary area
@@ -979,20 +981,20 @@ void TftPipCreate(uint8_t Titolo)
 //#=================================================================================
 //#
 //#=================================================================================
-void sPrintMisura(char *strMisura, uint32_t Misura, uint8_t indUnit)
+uint32_t sPrintMisura(char *strMisura, uint32_t Misura, uint8_t indUnit)
 {
-    // sPrintMisura(UnitaMisura, 10000, HZ);
+    // sPrintMisura("stringa", 10'000, HZ);
     uint8_t molt, ind0 = 0;
-    if (Misura>=1000) molt = 1;    // Misura/1000
-    if (Misura>=1000000) molt = 2; // Misura/1000000
+    uint32_t valMisura = Misura;
+    if (Misura>=1000) { molt = 1; valMisura /= 1000;}   // Misura/1000
+    if (Misura>=1000000) { molt = 2; valMisura /= 1000;} // Misura/1000000
     // strMisura = StrUnit[moltiplicatore] + StrSimbUnit[UnitaMisura]
     if(StrMoltUnit[indUnit][molt] != ' ')
-    {
-       strMisura[ind0] = StrMoltUnit[indUnit][molt];
-       ++ind0;
-     }
+       strMisura[ind0++] = StrMoltUnit[indUnit][molt];
     for(uint8_t ind1 = 0; (strMisura[ind0] && StrSimbUnit[indUnit][ind1]);)
       strMisura[ind0++] = StrSimbUnit[indUnit][ind1++];
+    strMisura[ind0] = '\0';
+    return valMisura;
 }
 //#=================================================================================
 //#
@@ -1011,10 +1013,10 @@ void TftPopPrint(uint8_t SimbUnitaMisura, uint32_t Misura)
     //pulisce il valore precedente
     tft.fillRect(1,61,121,28,ST77XX_YELLOW);
 
-    //Calcola la lunghezza dell'Unità di Misura (in pixel)
-    char UnitaMisura[4] = "   ";
-    sPrintMisura(UnitaMisura, Misura, SimbUnitaMisura);
-    
+    char UnitaMisura[] = "   "; // 3 spazi => "MHz"
+    Misura = sPrintMisura(UnitaMisura, Misura, SimbUnitaMisura);
+
+     //Calcola la lunghezza dell'Unità di Misura (in pixel)
     uint8_t XUnitMisLeng = ((strlen(UnitaMisura) * FontLarg) + PipEndSpace);
     //Calcola la posizione dell'unità di misura
     uint8_t Xx = PipEndArea - XUnitMisLeng;
@@ -1035,8 +1037,10 @@ void TftPopPrint(uint8_t SimbUnitaMisura, uint32_t Misura)
 //#=================================================================================
 //#
 //#=================================================================================
-void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value)
+void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value, uint8_t SimbUnitaMisura)
 {
+  char UnitaMisura[] = "   "; // 3 spazi => "MHz"
+  if (SimbUnitaMisura < 255) Value = sPrintMisura(UnitaMisura, Value, SimbUnitaMisura);
 //Font Large considera la larghezza del font base e dello spazio fra un carattere e l'altro
 #define FontLargBase 6
   //Presenta la Misura allineandola a destra rispetto all'Unità di Misura
