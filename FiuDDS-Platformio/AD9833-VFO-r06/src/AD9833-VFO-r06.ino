@@ -512,6 +512,8 @@ void FreqEncoderPush()
     bitSet(TftStatus,3);
     //e lo aggiorna
     TftPopPrint("Hz",FrequencyStepValue[Indice]);
+        FrequencyDisplay.clear(Indice);
+        FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
   }
   else
   //Se una PiP è attiva la gestisce
@@ -539,6 +541,10 @@ void FreqEncoderPush()
         bitSet(TftStatus,3);
         //e lo aggiorna
         TftPopPrint("Hz",FrequencyStepValue[Indice]);
+
+        FrequencyDisplay.clear(Indice);
+        FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
+
         break;
       case 2:
         //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
@@ -560,6 +566,10 @@ void FreqEncoderPush()
         bitSet(TftStatus,3);
         //e lo aggiorna
         TftPopPrint("Hz",FrequencyStepValue[Indice]);
+
+        FrequencyDisplay.clear(Indice);
+        FrequencyDisplay.write(FrequencyStepEsponent[Indice], B01100011, Indice);
+
         break;
       case 3:
         //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
@@ -578,20 +588,21 @@ void FreqEncoderPush()
 
 
 //#=================================================================================
-//#DisplayFrequency(byte CurrentDisplay)
+//#DisplayFrequency(uint8_t CurrentDisplay)
 //#
 //#Presenta la frequenza sul display CurrentDisplay
 //#Il display è composto da 2 (o più) unità da 8 cifre collegate in serie (8+8)
 //#il valore posto in CurrentDisplay permette di sapere da quale digit si deve
 //#iniziare a scrivere
 //#=================================================================================
-void DisplayFrequency(byte CurrentDisplay)
+void DisplayFrequency(uint8_t CurrentDisplay)
 {
   //Stampa la frequenza corrente allineata a destra
     FrequencyDisplay.clear(CurrentDisplay);
 //    FrequencyDisplay.printDigit(Frequency[0][0],FirstDigit[CurrentDisplay],CurrentDisplay);
     FrequencyDisplay.printDigit(Frequency[0][0],CurrentDisplay);
 }
+
 
 
 //-----------------------------------------------------------------------------
@@ -1076,16 +1087,10 @@ void RotaryPush()
       //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
       if (AuxRotary.push() == 1)
       {
-        FrequencyDisplay.printDigit(FiuMode,0);
-        delay(2000);
-        FrequencyDisplay.clear(0);
-        delay(1000);
         //Disattiva lo stato del bit 1
         bitClear(FiuMode,1);
         //Fa un ritardo arbitrario per evitare eventuali spurie
         delay(50);
-        FrequencyDisplay.printDigit(FiuMode,0);
-        delay(2000);
       }
       break;
     case 4:
