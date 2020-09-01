@@ -1097,9 +1097,9 @@ void RotaryPush()
   switch (FiuMode & B00000111)
   {
     case 1: //Push della frequenza principale attivo
-      FrequencyDisplay.printDigit(111,0);
+/*       FrequencyDisplay.printDigit(111,0);
       delay(2000);
-      //La frequenza principale può andare in modalità Push in tutti le modalità 
+ */      //La frequenza principale può andare in modalità Push in tutti le modalità 
       if (FrequencyRotary.push() == 1)
       {
         //Disattiva lo stato del bit 0
@@ -1109,9 +1109,9 @@ void RotaryPush()
       }
       break;
     case 2:
-      FrequencyDisplay.printDigit(222,0);
+/*       FrequencyDisplay.printDigit(222,0);
       delay(2000);
-      //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
+ */      //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
       if (AuxRotary.push() == 1)
       {
         //Disattiva lo stato del bit 1
