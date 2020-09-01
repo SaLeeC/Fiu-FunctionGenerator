@@ -300,16 +300,17 @@ SimpleRotary FrequencyRotary(FERotaryA,FERotaryB,FERotaryButton);
 uint8_t RotaryState = 0;
 
 //uint8_t FrequencyRotaryState;
-uint8_t FrequencyStepEsponent[2] = {0,0};//potenza del 10 che si somma o sottrae alla frequenza
-float FrequencyStepValue[2] = {1,1};//Valore effettivo dello step da attuare espresso in Herz
+uint8_t FrequencyStepEsponent[3] = {0,0,0};//potenza del 10 che si somma o sottrae alla frequenza
+float FrequencyStepValue[3] = {1,1,1};//Valore effettivo dello step da attuare espresso in Herz
 char *FrequencyStepLabel[] = {"F L Step",
-                              "F H Step"};
+                              "F H Step",
+                              "Sweep T"};
 //#=================================================================================
 // Encoder Rotary area
 //Settaggio forma d'onda e Modalità di generazione (singola frequenza, sweep, ...)
 //#=================================================================================
 #define MERotaryA  9
-#define MERotaryB 10
+#define MERotaryB 19
 #define MERotaryButton 15
 SimpleRotary AuxRotary(MERotaryA,MERotaryB,MERotaryButton);
 
@@ -317,6 +318,15 @@ uint8_t ModeRotaryState;
 
 #define NumOfMode 2
 char *ModeLabel[] = {"Forma d'Onda", "Sweep"};
+
+//#=================================================================================
+// Encoder Rotary area
+//Settaggio Tempo di Sweep
+//#=================================================================================
+#define SweepTimeRotaryA  20
+#define SweepTimeRotaryB 21
+#define SweepTimeRotaryButton 3
+SimpleRotary SweepTimeRotary(SweepTimeRotaryA,SweepTimeRotaryB,SweepTimeRotaryButton);
 
 //#=================================================================================
 // Pulsantiera area
@@ -382,7 +392,7 @@ void loop()
   //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
   if (bitRead(FiuMode,0))
   {
-    FreqEncoderPush();
+    EncoderPush();
   }
 
 //Modifico il flusso perchè la prima parte del controllo è il falso del controllo precedente
@@ -417,11 +427,10 @@ void loop()
   {
     //Controlla se l'encoder ausiliario è premuto
     RotaryPush();
-    //controlla se è premuto l'encoder principale (frequenza)
-    //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
-    if (FiuMode & EncoderAuxPush)
+//    if (FiuMode & EncoderAuxPush)
+    if (FiuMode & B00000110)
     {
-      FreqEncoderPush();
+      EncoderPush();
     }
   }
   //Se è falso è in modalità Fixed Frequency
@@ -485,7 +494,7 @@ void CheckControllPanel()
 //#=================================================================================
 //#
 //#=================================================================================
-void FreqEncoderPush()
+void EncoderPush()
 {
   uint8_t Indice = 0;
   //Converte i tre bit di stato nell'indice per gli array associati agli encoder  
@@ -511,16 +520,32 @@ void FreqEncoderPush()
     //Forza lo stato della PiP in Da Aggiornare
     bitSet(TftStatus,3);
     //e lo aggiorna
-    TftPopPrint("Hz",FrequencyStepValue[Indice]);
-        FrequencyDisplay.clear(Indice);
-        FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
+    //L'aggiornamento è differenziato asseconda se si interviene su frequenze e sul
+    //tempo di sweep
+    if (Indice<2)
+    {
+      //Aggiorna la PoP per gli step delle frequenze (L e H)
+      TftPopPrint("Hz",FrequencyStepValue[Indice]);
+      //Aggiorna il display a sette segmenti relativo alla frequenza corrente
+      FrequencyDisplay.clear(Indice);
+      FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
+    }
+    else
+    {
+      //Aggiorna la PoP per lo step dello Sweep
+      TftPopPrint("uS",FrequencyStepValue[Indice]);
+      //Pulisce i display a sette segmenti 
+      FrequencyDisplay.clear(0);
+      FrequencyDisplay.clear(1);
+    }
+    
   }
   else
   //Se una PiP è attiva la gestisce
   {
     //Legge la rotazione degli encoder
     RotaryTurn();
-    //Se la finestra PiP è attiva ed è stato ruotato l'encoder
+    //Se è stato ruotato un encoder
     if (RotaryState != 0)
     {
     switch (TftStatus & B00000011)
@@ -528,7 +553,7 @@ void FreqEncoderPush()
       case 1:
         //Pulisce i dati provenienti dagli encoder Aux e Sweep Time
         RotaryState = RotaryState & B00000011;
-        //Attua la azione collegata alla rotazione della manopola
+        //Attua l'azione collegata alla rotazione della manopola
         FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
         FrequencyStepValue[Indice] = 1;
         for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
@@ -543,15 +568,13 @@ void FreqEncoderPush()
         TftPopPrint("Hz",FrequencyStepValue[Indice]);
 
         FrequencyDisplay.clear(Indice);
-        FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
+        FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
 
         break;
       case 2:
         //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
         RotaryState = RotaryState >> 2;
         RotaryState = RotaryState & B00000011;
-        FrequencyDisplay.printDigit(RotaryState,0);
-        delay(2000);
 
         //Attua la azione collegata alla rotazione della manopola
         FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
@@ -568,7 +591,7 @@ void FreqEncoderPush()
         TftPopPrint("Hz",FrequencyStepValue[Indice]);
 
         FrequencyDisplay.clear(Indice);
-        FrequencyDisplay.write(FrequencyStepEsponent[Indice], B01100011, Indice);
+        FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
 
         break;
       case 3:
@@ -599,7 +622,6 @@ void DisplayFrequency(uint8_t CurrentDisplay)
 {
   //Stampa la frequenza corrente allineata a destra
     FrequencyDisplay.clear(CurrentDisplay);
-//    FrequencyDisplay.printDigit(Frequency[0][0],FirstDigit[CurrentDisplay],CurrentDisplay);
     FrequencyDisplay.printDigit(Frequency[0][0],CurrentDisplay);
 }
 
@@ -783,7 +805,8 @@ void TftFrequencyLimit()
   tft.setCursor(59,110);
   tft.print("MHz");
   //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
-  if (bitRead(FiuMode,7) & ((TftStatus & B00001111) == 0)) 
+//  if (bitRead(FiuMode,7) & ((TftStatus & B00001111) == 0)) 
+  if (bitRead(FiuMode,7) & ((TftStatus & B00000011) == 0)) 
   {
     //Cancella il simbolo precedente
     tft.fillRect(1,20,51, 31, ST77XX_BLACK);
@@ -1074,6 +1097,8 @@ void RotaryPush()
   switch (FiuMode & B00000111)
   {
     case 1: //Push della frequenza principale attivo
+      FrequencyDisplay.printDigit(111,0);
+      delay(2000);
       //La frequenza principale può andare in modalità Push in tutti le modalità 
       if (FrequencyRotary.push() == 1)
       {
@@ -1084,6 +1109,8 @@ void RotaryPush()
       }
       break;
     case 2:
+      FrequencyDisplay.printDigit(222,0);
+      delay(2000);
       //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
       if (AuxRotary.push() == 1)
       {
@@ -1094,16 +1121,16 @@ void RotaryPush()
       }
       break;
     case 4:
+      FrequencyDisplay.printDigit(444,0);
+      delay(2000);
       //Il tempo di Sweep può andare in modalità Push solo in modalità Sweep
-/*    Da definire il terzo encoder   
-      if (AuxRotary.push() == 1)
+      if (SweepTimeRotary.push() == 1)
       {
         //Disattiva lo stato del bit 1
-        bitClear(FiuMode,1);
+        bitClear(FiuMode,2);
         //Fa un ritardo arbitrario per evitare eventuali spurie
         delay(50);
       }
- */
       break;
     default: //Resetta tutti i push
       FiuMode = FiuMode & B11111000;
@@ -1128,16 +1155,17 @@ void RotaryPush()
         //Fa un ritardo arbitrario per evitare eventuali spurie
         delay(50);
       }
-/*    Da definire il terzo encoder
-      if (AuxRotary.push() == 1)
+      else
       {
-        //Disattiva lo stato del bit 1
-        bitSet(FiuMode,1);
-        //Fa un ritardo arbitrario per evitare eventuali spurie
-        delay(50);
+        if (SweepTimeRotary.push() == 1)
+        {
+          //Disattiva lo stato del bit 1
+          bitSet(FiuMode,2);
+          //Fa un ritardo arbitrario per evitare eventuali spurie
+          delay(50);
+        }
       }
- */      
-
+ 
     }
   }
   
@@ -1154,7 +1182,6 @@ void RotaryTurn()
   RotaryState = FrequencyRotary.rotate();
   //Legge l'encoder ausiliario ()
   RotaryState = RotaryState + (4*AuxRotary.rotate());
-  FrequencyDisplay.printDigit(RotaryState,1);
 }
 
 //#=================================================================================
