@@ -266,7 +266,7 @@ uint8_t TftStatus = FixedFreqRequest;
 #define DIV {'u', 'm', ' '}
 // PROGMEM
 const char StrMoltUnit[][3] = {[HZ]=MUL, [Sec]=DIV };
-const char StrSimbUnit [][3] = {[HZ]="Hz", [Sec]="s"};
+const char StrSimbUnit [][3] = {"Hz", "s"};
 
 //#=================================================================================
 // Encoder Rotary area
