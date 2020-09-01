@@ -259,7 +259,14 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 #define FixedFreqRequest 128
 #define SweepRequest 64
 uint8_t TftStatus = FixedFreqRequest;
-                    ;
+
+#define HZ (0)
+#define Sec (1)
+#define MUL {' ', 'k', 'M'}
+#define DIV {'u', 'm', ' '}
+// PROGMEM
+const char StrMoltUnit[][3] = {[HZ]=MUL, [Sec]=DIV };
+const char StrSimbUnit [][3] = {[HZ]="Hz", [Sec]="s"};
 
 //#=================================================================================
 // Encoder Rotary area
@@ -511,7 +518,7 @@ void FreqEncoderPush()
     //Forza lo stato della PiP in Da Aggiornare
     bitSet(TftStatus,3);
     //e lo aggiorna
-    TftPopPrint("Hz",FrequencyStepValue[Indice]);
+    TftPopPrint(HZ,FrequencyStepValue[Indice]);
   }
   else
   //Se una PiP è attiva la gestisce
@@ -538,7 +545,7 @@ void FreqEncoderPush()
         //Forza lo stato della PiP in "Da Aggiornare"
         bitSet(TftStatus,3);
         //e lo aggiorna
-        TftPopPrint("Hz",FrequencyStepValue[Indice]);
+        TftPopPrint(HZ,FrequencyStepValue[Indice]);
         break;
       case 2:
         //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
@@ -559,7 +566,7 @@ void FreqEncoderPush()
         //Forza lo stato della PiP in "Da Aggiornare"
         bitSet(TftStatus,3);
         //e lo aggiorna
-        TftPopPrint("Hz",FrequencyStepValue[Indice]);
+        TftPopPrint(HZ,FrequencyStepValue[Indice]);
         break;
       case 3:
         //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
@@ -972,7 +979,25 @@ void TftPipCreate(uint8_t Titolo)
 //#=================================================================================
 //#
 //#=================================================================================
-void TftPopPrint(char *UnitaMisura, uint32_t Misura)
+void sPrintMisura(char *strMisura, uint32_t Misura, uint8_t indUnit)
+{
+    // sPrintMisura(UnitaMisura, 10000, HZ);
+    uint8_t molt, ind0 = 0;
+    if (Misura>=1000) molt = 1;    // Misura/1000
+    if (Misura>=1000000) molt = 2; // Misura/1000000
+    // strMisura = StrUnit[moltiplicatore] + StrSimbUnit[UnitaMisura]
+    if(StrMoltUnit[indUnit][molt] != ' ')
+    {
+       strMisura[ind0] = StrMoltUnit[indUnit][molt];
+       ++ind0;
+     }
+    for(uint8_t ind1 = 0; (strMisura[ind0] && StrSimbUnit[indUnit][ind1]);)
+      strMisura[ind0++] = StrSimbUnit[indUnit][ind1++];
+}
+//#=================================================================================
+//#
+//#=================================================================================
+void TftPopPrint(uint8_t SimbUnitaMisura, uint32_t Misura)
 {
 #define FontLarg 12
 #define PipEndSpace 2
@@ -985,7 +1010,11 @@ void TftPopPrint(char *UnitaMisura, uint32_t Misura)
     tft.setTextColor(ST77XX_BLACK);
     //pulisce il valore precedente
     tft.fillRect(1,61,121,28,ST77XX_YELLOW);
+
     //Calcola la lunghezza dell'Unità di Misura (in pixel)
+    char UnitaMisura[4] = "   ";
+    sPrintMisura(UnitaMisura, Misura, SimbUnitaMisura);
+    
     uint8_t XUnitMisLeng = ((strlen(UnitaMisura) * FontLarg) + PipEndSpace);
     //Calcola la posizione dell'unità di misura
     uint8_t Xx = PipEndArea - XUnitMisLeng;
@@ -996,7 +1025,7 @@ void TftPopPrint(char *UnitaMisura, uint32_t Misura)
     //Calcola il numero massimo di cifre presentabili
     uint8_t MaxLength = ((121-XUnitMisLeng)/FontLarg);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura);
+    TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura); // UnitaMisura, SimbUnitaMisura);
     //Indica che il PiP è attivo ed è stato attualizzato il valore presentato
 //    TftStatus = PipMainFreqON;
     bitClear(TftStatus,3);
