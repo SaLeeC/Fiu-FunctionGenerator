@@ -516,7 +516,7 @@ void EncoderPush()
   //e l'unità di misura
   if ((TftStatus & B0000011) == 0)
   {
-    TftPipCreate(Indice);
+    TftPopCreate(Indice);
     //Forza lo stato della PiP in Da Aggiornare
     bitSet(TftStatus,3);
     //e lo aggiorna
@@ -805,13 +805,12 @@ void TftFrequencyLimit()
   tft.setCursor(59,110);
   tft.print("MHz");
   //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
-//  if (bitRead(FiuMode,7) & ((TftStatus & B00001111) == 0)) 
   if (bitRead(FiuMode,7) & ((TftStatus & B00000011) == 0)) 
   {
     //Cancella il simbolo precedente
     tft.fillRect(1,20,51, 31, ST77XX_BLACK);
     //Cancella i limiti precedenti
-    tft.fillRect(1,20, 73, 31, ST77XX_BLACK);
+//    tft.fillRect(1,20, 73, 31, ST77XX_BLACK);
     //Scrive i limiti di frequenza impostati
     tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
@@ -919,12 +918,14 @@ void TftDrawSquare(uint8_t Leng, uint8_t High,uint8_t Xx, uint8_t Yy)
 
 
 //#=================================================================================
-//#
+//#TftGraphInit()
+//#Compone la videata di base per le modalità Fixed Frequency e Sweep
+//#NON presenta nessun valore ma solo la fincatura, le label e il titolo
 //#=================================================================================
 void TftGraphInit()
 {
   //Controlla se è stato richiesto un aggiornamento del Display
-  if (TftStatus & B11000000)
+  if ((TftStatus & B11000000) != 0)
   {
     //Inizializza il display tft con gli elementi comuni
     tft.fillScreen(ST77XX_BLACK);
@@ -963,7 +964,8 @@ void TftGraphInit()
     {
       tft.print(GlobalModeLabel[GlobalModeSweep]);
       tft.drawRect(0,19,75,33,ST77XX_WHITE);//Limiti di frequenza
-      tft.drawRect(75,19,53,33,ST77XX_WHITE);//Forma d'onda (Grafica)
+      tft.drawRect(75,19,53,33,ST77XX_WHITE);//Tempo di Sweep
+      //Aggiunge la descrizione al pulsante Funzione 2
       tft.setCursor(43,151);
       tft.setTextSize(1);
       tft.print("Sw.Mode");
@@ -975,9 +977,11 @@ void TftGraphInit()
 }
 
 //#=================================================================================
-//#
+//#TftPopCreate(uint8_t Titolo)
+//#Crea la PoP e gli mette il titolo
+//#La PoP creata è vuota nella parte relativa al valore
 //#=================================================================================
-void TftPipCreate(uint8_t Titolo)
+void TftPopCreate(uint8_t Titolo)
 {
 #define PipRadius 5
 #define XPip 0
@@ -1004,7 +1008,11 @@ void TftPipCreate(uint8_t Titolo)
 }
 
 //#=================================================================================
-//#
+//#TftPopPrint(char *UnitaMisura, uint32_t Misura)
+//#Se è richiesto il refresh del vaolore presentato nella PoP
+//#Pulisce l'area dal precedente valore e chiama la funzione generica che
+//#scrive il valore e l'unità di misura allineati a Dx
+//#e alla fine resetta il flag del refresch
 //#=================================================================================
 void TftPopPrint(char *UnitaMisura, uint32_t Misura)
 {
@@ -1012,7 +1020,7 @@ void TftPopPrint(char *UnitaMisura, uint32_t Misura)
 #define PipEndSpace 2
 #define PipFontY 65
 #define PipEndArea 122
-  //Aggiorna il contenuto del PiP SOLO se richiesto
+  //Aggiorna il contenuto del PoP SOLO se richiesto
   if(bitRead(TftStatus,3))
   {
     tft.setTextSize(2);//Moltiplica la dimensione del font di default (5*8)
@@ -1032,13 +1040,14 @@ void TftPopPrint(char *UnitaMisura, uint32_t Misura)
     //Stampa il valore allineato a Dx tramite la routines specializzata
     TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura);
     //Indica che il PiP è attivo ed è stato attualizzato il valore presentato
-//    TftStatus = PipMainFreqON;
     bitClear(TftStatus,3);
   }
 }
   
 //#=================================================================================
-//#
+//#TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value)
+//#Funzione generica che
+//#Scrive il valore e l'unità di misura allineati a destra
 //#=================================================================================
 void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value)
 {
@@ -1168,24 +1177,29 @@ void RotaryPush()
  
     }
   }
-  
-
 }
 
 
 //#=================================================================================
-//#
+//#RotaryTurn()
+//#Legge gli encoder e carica su RotaryState lo stato relativo alla
+//#rotazione degli assi
 //#=================================================================================
 void RotaryTurn()
 {
-  //Legge l'encoder principale (Frequenza)
+  //Legge l'encoder principale (Frequenza Base)
   RotaryState = FrequencyRotary.rotate();
-  //Legge l'encoder ausiliario ()
+  //Legge l'encoder ausiliario (Seconda Frequenza per lo Sweep)
   RotaryState = RotaryState + (4*AuxRotary.rotate());
+  //Legge l'encoder Sweep Time (Tempo di Sweep)
+  RotaryState = RotaryState + (16*SweepTimeRotary.rotate());
 }
 
 //#=================================================================================
-//#
+//#RotaryTurnAction(float Value, float Delta, float LLimit, float HLimit)
+//#In base a contenuto della RotaryState modifica le variabili di riferimento
+//#per farlo usa il passo impostato come parametro
+//#gestisce il superamento dei limiti inferiore ed superiore 
 //#=================================================================================
 float RotaryTurnAction(float Value, float Delta, float LLimit, float HLimit)
 {
