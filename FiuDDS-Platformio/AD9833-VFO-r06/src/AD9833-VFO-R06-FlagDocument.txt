@@ -16,7 +16,7 @@
 //           1 PiP Display Refresh
 // bit 2
 // bit 1-0
-//           0 PiP Step OFF
+//           0 PoP All OFF
 //           1 PiP Main Frequency Step ON
 //           2 PiP Aux Frequency Step ON
 //           3 PiP Sweep Time Step ON

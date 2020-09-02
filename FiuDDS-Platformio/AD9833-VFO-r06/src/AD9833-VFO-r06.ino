@@ -389,22 +389,22 @@ void loop()
   RotaryPush();
 
   //controlla se è premuto l'encoder principale (frequenza)
-  //Il controllo è fuori dalla scelta della modalità perchè è comune ad entrambe le modalità
+  //Il controllo è fuori dalla scelta della modalità perchè è comune
+  //ad entrambe le modalità
   if (bitRead(FiuMode,0))
   {
-    EncoderPush();
+    PoPManagment();
   }
-
-//Modifico il flusso perchè la prima parte del controllo è il falso del controllo precedente
-//per cui sostituisco la prima parte del controllo con else
-//  //Se si è APPENA tornati dalla modalità PUSH alla modalità NORMALE
+  //Se non è attivo
   else
   {
-    if (TftStatus & PipMainFreqON)
+    //Se la La PoP risulta ancora attiva la disattiva
+    if ((TftStatus & B00000011) == 1)
     {
       //Segna come spenta la PiP
-      TftStatus = bitClear(TftStatus,0);
-      //Richiede l'aggiornamento della finestra di base per la MOdalità corrente
+      TftStatus = TftStatus & B11111100;
+      //Richiede l'aggiornamento della finestra di base per la MOdalità
+      //corrente
       //Se è in modalità Sweep
       if (FiuMode & B10000000)
       {
@@ -420,17 +420,19 @@ void loop()
       TftGraphInit();
   
     }
-  }
-  //Controlla la modalità di funzionamento impostata
-  //Se è vero è in modalità SWEEP
+  }//Se la modalità di funzionamento è Fixed Frequency
+  //non servono altri controlli diversamente se la 
+  //modalità di funzionamento impostata
+  //è SWEEP
   if (FiuMode & B10000000)
   {
-    //Controlla se l'encoder ausiliario è premuto
+    //Aggiorna lo stato dei Push degli encoder
     RotaryPush();
-//    if (FiuMode & EncoderAuxPush)
+    //Se l'encoder ausiliario o quello dei tempi di sweep sono attivi
+    //li gestisce 
     if (FiuMode & B00000110)
     {
-      EncoderPush();
+      PoPManagment();
     }
   }
   //Se è falso è in modalità Fixed Frequency
@@ -492,11 +494,12 @@ void CheckControllPanel()
 
 
 //#=================================================================================
-//#
+//#PoPManagment()
+//#Gestisce la creazione e l'aggiornamento delle PoP
 //#=================================================================================
-void EncoderPush()
+void PoPManagment()
 {
-  uint8_t Indice = 0;
+  uint8_t Indice = 9;//9 è il valore di indice non settato
   //Converte i tre bit di stato nell'indice per gli array associati agli encoder  
   switch (FiuMode & B0000111)
   {
@@ -512,12 +515,13 @@ void EncoderPush()
   default:
     break;
   }
-  //Se nessuna PiP non è stata creata la crea egli assegna il titolo, il primo valore
+  //Se nessuna PoP è stata creata la crea e gli assegna il titolo, il primo valore
   //e l'unità di misura
   if ((TftStatus & B0000011) == 0)
   {
+    //Crea la PoP
     TftPopCreate(Indice);
-    //Forza lo stato della PiP in Da Aggiornare
+    //Forza lo stato della PoP in Da Aggiornare
     bitSet(TftStatus,3);
     //e lo aggiorna
     //L'aggiornamento è differenziato asseconda se si interviene su frequenze e sul
@@ -530,7 +534,7 @@ void EncoderPush()
       FrequencyDisplay.clear(Indice);
       FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
     }
-    else
+    if (Indice == 2)
     {
       //Aggiorna la PoP per lo step dello Sweep
       TftPopPrint("uS",FrequencyStepValue[Indice]);
@@ -538,10 +542,9 @@ void EncoderPush()
       FrequencyDisplay.clear(0);
       FrequencyDisplay.clear(1);
     }
-    
   }
-  else
-  //Se una PiP è attiva la gestisce
+  //Se una PoP è attiva la gestisce
+  if ((TftStatus & B0000011) != 0)
   {
     //Legge la rotazione degli encoder
     RotaryTurn();
@@ -549,60 +552,76 @@ void EncoderPush()
     if (RotaryState != 0)
     {
     switch (TftStatus & B00000011)
-    {
-      case 1:
-        //Pulisce i dati provenienti dagli encoder Aux e Sweep Time
-        RotaryState = RotaryState & B00000011;
-        //Attua l'azione collegata alla rotazione della manopola
-        FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
-        FrequencyStepValue[Indice] = 1;
-        for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
-        {
-          FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
-        } 
-        //Aggiorna la visualizzazione dei limiti
-        TftFrequencyLimit(); 
-        //Forza lo stato della PiP in "Da Aggiornare"
-        bitSet(TftStatus,3);
-        //e lo aggiorna
-        TftPopPrint("Hz",FrequencyStepValue[Indice]);
-
-        FrequencyDisplay.clear(Indice);
-        FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
-
-        break;
-      case 2:
-        //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
-        RotaryState = RotaryState >> 2;
-        RotaryState = RotaryState & B00000011;
-
-        //Attua la azione collegata alla rotazione della manopola
-        FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
-        FrequencyStepValue[Indice] = 1;
-        for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
-        {
-          FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
-        } 
-        //Aggiorna la visualizzazione dei limiti
-        TftFrequencyLimit(); 
-        //Forza lo stato della PiP in "Da Aggiornare"
-        bitSet(TftStatus,3);
-        //e lo aggiorna
-        TftPopPrint("Hz",FrequencyStepValue[Indice]);
-
-        FrequencyDisplay.clear(Indice);
-        FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
-
-        break;
-      case 3:
-        //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
-        RotaryState = RotaryState >> 4;
-        RotaryState = RotaryState & B00000011;
-        //Attua la azione collegata alla rotazione della manopola
-        break;
-      default:
-        break;
-    }
+      {
+        case 1:
+          //Pulisce i dati provenienti dagli encoder Aux e Sweep Time
+          RotaryState = RotaryState & B00000011;
+          //Attua l'azione collegata alla rotazione della manopola
+          FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
+          FrequencyStepValue[Indice] = 1;
+          for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
+          {
+            FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
+          } 
+          //Aggiorna la visualizzazione dei limiti
+          TftFrequencyLimit(); 
+          //Forza lo stato della PoP in "Da Aggiornare"
+          bitSet(TftStatus,3);
+          //e lo aggiorna
+          TftPopPrint("Hz",FrequencyStepValue[Indice]);
+  
+          FrequencyDisplay.clear(Indice);
+          FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
+  
+          break;
+        case 2:
+          //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
+          RotaryState = RotaryState >> 2;
+          RotaryState = RotaryState & B00000011;
+  
+           //Attua la azione collegata alla rotazione della manopola
+          FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
+          FrequencyStepValue[Indice] = 1;
+          for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
+          {
+            FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
+          } 
+          //Aggiorna la visualizzazione dei limiti
+          TftFrequencyLimit(); 
+          //Forza lo stato della PoP in "Da Aggiornare"
+          bitSet(TftStatus,3);
+          //e lo aggiorna
+          TftPopPrint("Hz",FrequencyStepValue[Indice]);
+  
+          FrequencyDisplay.clear(Indice);
+          FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
+  
+          break;
+        case 3:
+          FrequencyDisplay.clear(0);
+          FrequencyDisplay.clear(1);
+          //Pulisce i dati provenienti dagli encoder Frequency e Sweep Time e allinea a Dx
+          RotaryState = RotaryState >> 4;
+          RotaryState = RotaryState & B00000011;
+          //Attua la azione collegata alla rotazione della manopola
+           //Attua la azione collegata alla rotazione della manopola
+          FrequencyStepEsponent[Indice] = RotaryTurnAction(FrequencyStepEsponent[Indice], 1.0, 0, 6);
+          FrequencyStepValue[Indice] = 1;
+          for (uint8_t ii = FrequencyStepEsponent[Indice]; ii != 0; ii--)
+          {
+            FrequencyStepValue[Indice] = FrequencyStepValue[Indice] * 10.0;
+          } 
+          //Aggiorna la visualizzazione dei limiti
+          TftFrequencyLimit(); 
+          //Forza lo stato della PoP in "Da Aggiornare"
+          bitSet(TftStatus,3);
+          //e lo aggiorna
+          TftPopPrint("uS",FrequencyStepValue[Indice]);
+  
+          break;
+        default:
+          break;
+      }
     }
   }
 }
@@ -1135,7 +1154,7 @@ void RotaryPush()
       //Il tempo di Sweep può andare in modalità Push solo in modalità Sweep
       if (SweepTimeRotary.push() == 1)
       {
-        //Disattiva lo stato del bit 1
+        //Disattiva lo stato del bit 2
         bitClear(FiuMode,2);
         //Fa un ritardo arbitrario per evitare eventuali spurie
         delay(50);
