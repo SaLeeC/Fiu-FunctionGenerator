@@ -502,7 +502,7 @@ void PoPManagment()
     if (Indice<2)
     {
       //Aggiorna la PoP per gli step delle frequenze (L e H)
-      TftPopPrint("Hz",FrequencyStepValue[Indice]);
+      TftPopPrint(HZ,FrequencyStepValue[Indice]);
       //Aggiorna il display a sette segmenti relativo alla frequenza corrente
       FrequencyDisplay.clear(Indice);
       FrequencyDisplay.write(FrequencyStepEsponent[Indice]+1, B01100011, Indice);
@@ -510,7 +510,7 @@ void PoPManagment()
     if (Indice == 2)
     {
       //Aggiorna la PoP per lo step dello Sweep
-      TftPopPrint("uS",FrequencyStepValue[Indice]);
+      TftPopPrint(SEC,FrequencyStepValue[Indice]);
       //Pulisce i display a sette segmenti 
       FrequencyDisplay.clear(0);
       FrequencyDisplay.clear(1);
@@ -543,7 +543,7 @@ void PoPManagment()
           //Forza lo stato della PoP in "Da Aggiornare"
           bitSet(TftStatus,3);
           //e lo aggiorna
-          TftPopPrint("Hz",FrequencyStepValue[Indice]);
+          TftPopPrint(HZ,FrequencyStepValue[Indice]);
   
           FrequencyDisplay.clear(Indice);
           FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
@@ -566,7 +566,7 @@ void PoPManagment()
           //Forza lo stato della PoP in "Da Aggiornare"
           bitSet(TftStatus,3);
           //e lo aggiorna
-          TftPopPrint("Hz",FrequencyStepValue[Indice]);
+          TftPopPrint(HZ,FrequencyStepValue[Indice]);
   
           FrequencyDisplay.clear(Indice);
           FrequencyDisplay.write(FrequencyStepEsponent[Indice] + 1, B01100011, Indice);
@@ -591,7 +591,7 @@ void PoPManagment()
           //Forza lo stato della PoP in "Da Aggiornare"
           bitSet(TftStatus,3);
           //e lo aggiorna
-          TftPopPrint("uS",FrequencyStepValue[Indice]);
+          TftPopPrint(SEC,FrequencyStepValue[Indice]);
   
           break;
         default:
@@ -806,49 +806,32 @@ void TftFrequencyLimit()
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(52, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
-  tft.setCursor(52,128);
-  tft.print("Hz");
+  TftPrintIntDxGiustify(46, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(52, 119, 1, FrequencyStepValue[0], HZ);
-  tft.setCursor(52,119);
-  tft.print("Hz");
+  TftPrintIntDxGiustify(46, 119, 1, FrequencyStepValue[0], HZ);
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(52, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000, HZ);
-  tft.setCursor(52,110);
-  tft.print("Hz");
+  TftPrintIntDxGiustify(46, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1], HZ);
   //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
   if (bitRead(FiuMode,7) & ((TftStatus & B00000011) == 0)) 
   {
     //Cancella il simbolo precedente
     tft.fillRect(19,20,37, 31, ST77XX_BLACK);
     //Cancella i limiti precedenti
-//    tft.fillRect(1,20, 73, 31, ST77XX_BLACK);
     //Scrive i limiti di frequenza impostati
     tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
-    tft.setCursor(52,42);
-    tft.print("Hz");
+    TftPrintIntDxGiustify(46, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 32, 1, FrequencyStepValue[1]);
-    tft.setCursor(52,32);
-    tft.print("Hz");
+    TftPrintIntDxGiustify(46, 32, 1, FrequencyStepValue[1], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 22, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000, HZ);
-    tft.setCursor(52,22);
-    tft.print("Hz");
+    TftPrintIntDxGiustify(46, 22, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
-    tft.setCursor(115,42);
-    tft.print("uS");
+    TftPrintIntDxGiustify(46, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(115, 42, 1, FrequencyStepValue[2], SEC);
-    tft.setCursor(115,32);
-    tft.print("uS");
+    TftPrintIntDxGiustify(109, 42, 1, FrequencyStepValue[2], SEC);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(115, 32, 1, Frequency[2], SEC);
+    TftPrintIntDxGiustify(109, 32, 1, Frequency[2], SEC);
 
   }
 }
