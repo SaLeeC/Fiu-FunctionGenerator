@@ -384,66 +384,7 @@ void loop()
   //Controlla se è stato premuto il bottone per modificare la modalità di
   //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT
   CheckControllPanel();
-
-  //Controlla se gli encoder sono premuti
-  //RotaryPush();
-
-  //controlla se è premuto l'encoder principale (frequenza)
-  //Il controllo è fuori dalla scelta della modalità perchè è comune
-  //ad entrambe le modalità
-/*   if (bitRead(FiuMode,0))
-  {
-    PoPManagment();
-  }
- */  //Se non è attivo
-/*   else
-  {
-    //Se la La PoP risulta ancora attiva la disattiva
-    if ((TftStatus & B00000011) == 1)
-    {
-      //Segna come spenta la PoP
-      TftStatus = TftStatus & B11111100;
-      //Richiede l'aggiornamento della finestra di base per la MOdalità
-      //corrente
-      //Se è in modalità Sweep
-      if (FiuMode & B10000000)
-      {
-        TftStatus = bitSet(TftStatus, 6);
-      }
-      //altrimenti è in modalità Fixed Frequency
-      else
-      {
-        TftStatus = bitSet(TftStatus, 7);
-      }
-  
-      //Ricrea la finestra di base
-      TftGraphInit();
-  
-    }
-  }//Se la modalità di funzionamento è Fixed Frequency
- */  //non servono altri controlli diversamente se la 
-  //modalità di funzionamento impostata
-  //è SWEEP
-/*   if (FiuMode & B10000000)
-  {
-    //Aggiorna lo stato dei Push degli encoder
-    //RotaryPush();
-    //Se l'encoder ausiliario o quello dei tempi di sweep sono attivi
-    //li gestisce 
-    if (FiuMode & B00000110)
-    {
- */
-      PoPManagment();
-//    }
-/*   }
-  //Se è falso è in modalità Fixed Frequency
-  else
-  {
-  }
- */  
-
-
-
+  PoPManagment();
 
 }
 
