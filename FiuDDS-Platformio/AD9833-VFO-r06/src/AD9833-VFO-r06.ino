@@ -263,12 +263,12 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 uint8_t TftStatus = FixedFreqRequest;
 
 #define HZ (0)
-#define Sec (1)
+#define SEC (1)
 #define MUL {' ', 'k', 'M'}
 #define DIV {'u', 'm', ' '}
 // PROGMEM
-const char StrMoltUnit[][3] = {[HZ]=MUL, [Sec]=DIV};
-const char *StrSimbUnit[] = {[HZ]="Hz", [Sec]="s"};
+const char StrMoltUnit[][3] = {[HZ]=MUL, [SEC]=DIV};
+const char *StrSimbUnit[] = {[HZ]="Hz", [SEC]="s"};
 
 //#=================================================================================
 // Encoder Rotary area
@@ -806,15 +806,15 @@ void TftFrequencyLimit()
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(52, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+  TftPrintIntDxGiustify(52, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
   tft.setCursor(52,128);
   tft.print("Hz");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(52, 119, 1, FrequencyStepValue[0]);
+  TftPrintIntDxGiustify(52, 119, 1, FrequencyStepValue[0], HZ);
   tft.setCursor(52,119);
   tft.print("Hz");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(52, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+  TftPrintIntDxGiustify(52, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000, HZ);
   tft.setCursor(52,110);
   tft.print("Hz");
   //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
@@ -828,7 +828,7 @@ void TftFrequencyLimit()
     tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
     tft.setCursor(52,42);
     tft.print("Hz");
     //Stampa il valore allineato a Dx tramite la routines specializzata
@@ -836,19 +836,19 @@ void TftFrequencyLimit()
     tft.setCursor(52,32);
     tft.print("Hz");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 22, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+    TftPrintIntDxGiustify(52, 22, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000, HZ);
     tft.setCursor(52,22);
     tft.print("Hz");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
     tft.setCursor(115,42);
     tft.print("uS");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(115, 42, 1, FrequencyStepValue[2]);
+    TftPrintIntDxGiustify(115, 42, 1, FrequencyStepValue[2], SEC);
     tft.setCursor(115,32);
     tft.print("uS");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(115, 32, 1, Frequency[2]);
+    TftPrintIntDxGiustify(115, 32, 1, Frequency[2], SEC);
 
   }
 }
@@ -1056,19 +1056,23 @@ void TftPopCreate(uint8_t Titolo)
 //#=================================================================================
 uint32_t sPrintMisura(char *strMisura, uint32_t Misura, uint8_t indUnit)
 {
-    // sPrintMisura("stringa", 10'000, HZ);
-    uint8_t molt = 0, ind0 = 0;
-    uint32_t valMisura = Misura;
-    if (Misura>=1000) { molt = 1; valMisura /= 1000;}   // Misura/1000
-    if (Misura>=1000000) { molt = 2; valMisura /= 1000;} // Misura/1000000
-    // strMisura = StrUnit[moltiplicatore] + StrSimbUnit[UnitaMisura]
-    if(StrMoltUnit[indUnit][molt] != ' ')
-       strMisura[ind0++] = StrMoltUnit[indUnit][molt];
-    for(uint8_t ind1 = 0; (strMisura[ind0] && StrSimbUnit[indUnit][ind1]);)
-      strMisura[ind0++] = StrSimbUnit[indUnit][ind1++];
-    strMisura[ind0] = '\0';
-    return valMisura;
+  // use: sPrintMisura(stringa, 10'000, HZ);
+  uint8_t molt = 0, ind0 = 0;
+  uint32_t valMisura = Misura;
+  while (valMisura >= 1000)
+  {
+    ++molt;
+    valMisura /= 1000;
+  } // Misura/1000 // Misura/1000000
+  // strMisura = StrUnit[moltiplicatore] + StrSimbUnit[UnitaMisura]
+  if (StrMoltUnit[indUnit][molt] != ' ')
+    strMisura[ind0++] = StrMoltUnit[indUnit][molt];
+  for (uint8_t ind1 = 0; (strMisura[ind0] && StrSimbUnit[indUnit][ind1]);)
+    strMisura[ind0++] = StrSimbUnit[indUnit][ind1++];
+  strMisura[ind0] = '\0';
+  return valMisura;
 }
+
 //#=================================================================================
 //#
 //#=================================================================================
@@ -1100,7 +1104,7 @@ void TftPopPrint(uint8_t SimbUnitaMisura, uint32_t Misura)
     //Calcola il numero massimo di cifre presentabili
     uint8_t MaxLength = ((121-XUnitMisLeng)/FontLarg);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura); // UnitaMisura, SimbUnitaMisura);
+    TftPrintIntDxGiustify(Xx, PipFontY, 2, Misura);
     //Indica che il PiP è attivo ed è stato attualizzato il valore presentato
     bitClear(TftStatus,3);
   }
@@ -1113,8 +1117,13 @@ void TftPopPrint(uint8_t SimbUnitaMisura, uint32_t Misura)
 //#=================================================================================
 void TftPrintIntDxGiustify(uint8_t Xxx, uint8_t Yyy, uint8_t FontMultiplyer, uint32_t Value, uint8_t SimbUnitaMisura)
 {
-  char UnitaMisura[] = "   "; // 3 spazi => "MHz"
-  if (SimbUnitaMisura < 255) Value = sPrintMisura(UnitaMisura, Value, SimbUnitaMisura);
+  if (SimbUnitaMisura < 255)
+  {
+    char UnitaMisura[] = "   "; // 3 spazi => "MHz"
+    Value = sPrintMisura(UnitaMisura, Value, SimbUnitaMisura);
+    tft.setCursor(Xxx, Yyy);
+    tft.print(UnitaMisura);
+  }
 //Font Large considera la larghezza del font base e dello spazio fra un carattere e l'altro
 #define FontLargBase 6
   //Presenta la Misura allineandola a destra rispetto all'Unità di Misura
