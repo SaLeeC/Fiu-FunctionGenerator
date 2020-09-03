@@ -334,7 +334,7 @@ SimpleRotary SweepTimeRotary(SweepTimeRotaryA,SweepTimeRotaryB,SweepTimeRotaryBu
 //#=================================================================================
 #define PushGlobalMode 16
 #define Push1 17
-#define Push2 18
+#define PushWave 18
 #define AntiBounceDelay 200
 
 //#=================================================================================
@@ -425,6 +425,24 @@ void CheckControllPanel()
         TftGraphInit();
         //Aspetta il rilascio del pulsante
         while(digitalRead(PushGlobalMode)==LOW)
+        {
+        }
+      }
+    }
+    if(digitalRead(PushWave)==LOW)
+    {
+      //Antibounce
+      delay(AntiBounceDelay);
+      if(digitalRead(PushWave)==LOW)
+      {
+        //Aggiorna la forma d'onda corrente
+        FrequencyWaveCurrentType[0] ++;
+        //controlla il superamento del numero di forme d'onda previste
+        FrequencyWaveCurrentType[0] = FrequencyWaveCurrentType[0] % WaveTypeNumber;
+        //Aggiorna la presentazione della forma d'onda corrente
+        TftCurrentWave(FrequencyWaveCurrentType[0]);
+        //Aspetta il rilascio del pulsante
+        while(digitalRead(PushWave)==LOW)
         {
         }
       }
@@ -950,7 +968,7 @@ void TftGraphInit()
 
     TftFrequencyLimit(); 
     //Stampa la forma d'onda generata (serve in entrambe le modalità)
-    TftCurrentWave(0);
+    TftCurrentWave(FrequencyWaveCurrentType[0]);
     tft.setCursor(0,0);
     tft.setTextSize(2);
     //Modalità Frequenza Fissa
@@ -1098,7 +1116,7 @@ void SetupIO()
 
   pinMode(PushGlobalMode, INPUT_PULLUP);
   pinMode(Push1, INPUT_PULLUP);
-  pinMode(Push2, INPUT_PULLUP);
+  pinMode(PushWave, INPUT_PULLUP);
 
   pinMode(MAX7219CS, OUTPUT);
 
