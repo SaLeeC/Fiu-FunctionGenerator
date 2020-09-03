@@ -929,12 +929,14 @@ void TftGraphInit()
     tft.setTextColor(ST77XX_WHITE);
     tft.setCursor(18,141);
     tft.print("F1");
-    tft.setCursor(12,151);
+    tft.setCursor(12,150);
     tft.print("Mode");
     tft.setCursor(57,141);
     tft.print("F2");    
     tft.setCursor(100,141);
     tft.print("F3");  
+    tft.setCursor(94,150);
+    tft.print("Wave");
 
     tft.drawRect(0,106,65,33,ST77XX_WHITE);//Limiti di frequenza
     tft.drawRect(64,106,64,33,ST77XX_WHITE);//Forma d'onda (Grafica)
@@ -977,7 +979,7 @@ void TftGraphInit()
       tft.print("Sweep Time");
 
       //Aggiunge la descrizione al pulsante Funzione 2
-      tft.setCursor(43,151);
+      tft.setCursor(43,150);
       tft.setTextSize(1);
       tft.print("Sw.Mode");
 
