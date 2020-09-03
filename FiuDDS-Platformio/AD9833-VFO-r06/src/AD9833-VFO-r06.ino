@@ -98,10 +98,10 @@ const int wSquare   = 0b0000000000101000;
 //La 2 è la frequenza corrente in Sweep Mode
 #define FreqL 0
 #define FreqH 1
-#define FreqNow 2
+#define SweepTimeToSweep 2
+#define FreqNow 3
 
-float Frequency[3][2] = {1,1,1,
-                        1,1,1};
+float Frequency[4] = {1,1,1,1};
 
 //Generatore corrente
 //Il generatore utilizzato è sempre lo 0
@@ -356,7 +356,7 @@ void setup()
   //Inizializza le variabili di stato
   CurrentGenerator = Generator0;
   FrequencyWaveCurrentType [CurrentGenerator] = Sine;
-  Frequency[FreqL][CurrentGenerator] = FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][CurrentGenerator];
+  Frequency[FreqL] = FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][CurrentGenerator];
 
   //Manda il messaggio di benvenuto sui display sette segmenti
   SevenSegHello();
@@ -614,7 +614,7 @@ void DisplayFrequency(uint8_t CurrentDisplay)
 {
   //Stampa la frequenza corrente allineata a destra
     FrequencyDisplay.clear(CurrentDisplay);
-    FrequencyDisplay.printDigit(Frequency[0][0],CurrentDisplay);
+    FrequencyDisplay.printDigit(Frequency[0],CurrentDisplay);
 }
 
 
@@ -774,56 +774,55 @@ void TftFrequencyLimit()
   //Cancella il simbolo precedente
   tft.fillRect(76,112,51, 27, ST77XX_BLACK);
   //Cancella i limiti precedenti
-  tft.fillRect(1,112, 73, 24, ST77XX_BLACK);
+  tft.fillRect(19,107, 37, 31, ST77XX_BLACK);
   //Scrive i limiti di frequenza impostati
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(2,128);
-  tft.print("min");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(59, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
-  tft.setCursor(59,128);
+  TftPrintIntDxGiustify(52, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+  tft.setCursor(52,128);
   tft.print("Hz");
-  tft.setCursor(2,119);
-  tft.print("Step");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(59, 119, 1, FrequencyStepValue[0]);
-  tft.setCursor(59,119);
+  TftPrintIntDxGiustify(52, 119, 1, FrequencyStepValue[0]);
+  tft.setCursor(52,119);
   tft.print("Hz");
-  tft.setCursor(2,110);
-  tft.print("MAX");
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(59, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
-  tft.setCursor(59,110);
-  tft.print("MHz");
+  TftPrintIntDxGiustify(52, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+  tft.setCursor(52,110);
+  tft.print("Hz");
   //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
   if (bitRead(FiuMode,7) & ((TftStatus & B00000011) == 0)) 
   {
     //Cancella il simbolo precedente
-    tft.fillRect(1,20,51, 31, ST77XX_BLACK);
+    tft.fillRect(19,20,37, 31, ST77XX_BLACK);
     //Cancella i limiti precedenti
 //    tft.fillRect(1,20, 73, 31, ST77XX_BLACK);
     //Scrive i limiti di frequenza impostati
     tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
-    tft.setCursor(2,43);
-    tft.print("min");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(59, 43, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
-    tft.setCursor(59,43);
+    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+    tft.setCursor(52,42);
     tft.print("Hz");
-    tft.setCursor(2,34);
-    tft.print("Step");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(59, 34, 1, FrequencyStepValue[1]);
-    tft.setCursor(59,34);
+    TftPrintIntDxGiustify(52, 32, 1, FrequencyStepValue[1]);
+    tft.setCursor(52,32);
     tft.print("Hz");
-    tft.setCursor(2,25);
-    tft.print("MAX");
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(59, 25, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
-    tft.setCursor(59,25);
-    tft.print("MHz");
+    TftPrintIntDxGiustify(52, 22, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]/1000000);
+    tft.setCursor(52,22);
+    tft.print("Hz");
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(52, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0]);
+    tft.setCursor(115,42);
+    tft.print("uS");
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(115, 42, 1, FrequencyStepValue[2]);
+    tft.setCursor(115,32);
+    tft.print("uS");
+    //Stampa il valore allineato a Dx tramite la routines specializzata
+    TftPrintIntDxGiustify(115, 32, 1, Frequency[2]);
+
   }
 }
 
@@ -836,13 +835,13 @@ void TftCurrentWave(uint8_t Mode)
   switch (Mode)
   {
     case 0:
-      TftDrawSine(45, 25,77, 110);
+      TftDrawSine(55, 25,67, 110);
       break;
     case 1:
-      TftDrawTriangle(45, 25,77, 110);
+      TftDrawTriangle(55, 25,67, 110);
       break;
     case 2:
-      TftDrawSquare(45, 25,77, 110);
+      TftDrawSquare(55, 25,67, 110);
       break;
     default:
       break;
@@ -925,8 +924,6 @@ void TftGraphInit()
     tft.drawRect(0,139,42,20,ST77XX_WHITE);//Funzione F1
     tft.drawRect(42,139,43,20,ST77XX_WHITE);//Funzione F2
     tft.drawRect(85,139,43,20,ST77XX_WHITE);//Funzione F3
-    tft.drawRect(0,106,75,33,ST77XX_WHITE);//Limiti di frequenza
-    tft.drawRect(75,106,53,33,ST77XX_WHITE);//Forma d'onda (Grafica)
     //Scrive la modalità sul TFT
     tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
@@ -938,7 +935,17 @@ void TftGraphInit()
     tft.print("F2");    
     tft.setCursor(100,141);
     tft.print("F3");  
+
+    tft.drawRect(0,106,65,33,ST77XX_WHITE);//Limiti di frequenza
+    tft.drawRect(64,106,64,33,ST77XX_WHITE);//Forma d'onda (Grafica)
     //Stampa i limiti di frequenza (servono in entrambe le modalità)
+    tft.setCursor(2,128);
+    tft.print("min");
+    tft.setCursor(2,119);
+    tft.print("Stp");
+    tft.setCursor(2,110);
+    tft.print("MAX");
+
     TftFrequencyLimit(); 
     //Stampa la forma d'onda generata (serve in entrambe le modalità)
     TftCurrentWave(0);
@@ -955,8 +962,20 @@ void TftGraphInit()
     //Aggiunge gli elementi specifici per la Sweep
     {
       tft.print(GlobalModeLabel[GlobalModeSweep]);
-      tft.drawRect(0,19,75,33,ST77XX_WHITE);//Limiti di frequenza
-      tft.drawRect(75,19,53,33,ST77XX_WHITE);//Tempo di Sweep
+      tft.setTextSize(1);
+      tft.drawRect(0,19,65,33,ST77XX_WHITE);//Limiti di frequenza
+      tft.drawRect(64,19,64,33,ST77XX_WHITE);//Tempo di Sweep
+      tft.setCursor(2,42);
+      tft.print("min");
+      tft.setCursor(2,32);
+      tft.print("Stp");
+      tft.setCursor(2,22);
+      tft.print("MAX");
+      tft.setCursor(66,42);
+      tft.print("Stp");
+      tft.setCursor(66,22);
+      tft.print("Sweep Time");
+
       //Aggiunge la descrizione al pulsante Funzione 2
       tft.setCursor(43,151);
       tft.setTextSize(1);
