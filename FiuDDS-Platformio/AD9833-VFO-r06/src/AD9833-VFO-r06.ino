@@ -386,22 +386,22 @@ void loop()
   CheckControllPanel();
 
   //Controlla se gli encoder sono premuti
-  RotaryPush();
+  //RotaryPush();
 
   //controlla se è premuto l'encoder principale (frequenza)
   //Il controllo è fuori dalla scelta della modalità perchè è comune
   //ad entrambe le modalità
-  if (bitRead(FiuMode,0))
+/*   if (bitRead(FiuMode,0))
   {
     PoPManagment();
   }
-  //Se non è attivo
-  else
+ */  //Se non è attivo
+/*   else
   {
     //Se la La PoP risulta ancora attiva la disattiva
     if ((TftStatus & B00000011) == 1)
     {
-      //Segna come spenta la PiP
+      //Segna come spenta la PoP
       TftStatus = TftStatus & B11111100;
       //Richiede l'aggiornamento della finestra di base per la MOdalità
       //corrente
@@ -421,25 +421,26 @@ void loop()
   
     }
   }//Se la modalità di funzionamento è Fixed Frequency
-  //non servono altri controlli diversamente se la 
+ */  //non servono altri controlli diversamente se la 
   //modalità di funzionamento impostata
   //è SWEEP
-  if (FiuMode & B10000000)
+/*   if (FiuMode & B10000000)
   {
     //Aggiorna lo stato dei Push degli encoder
-    RotaryPush();
+    //RotaryPush();
     //Se l'encoder ausiliario o quello dei tempi di sweep sono attivi
     //li gestisce 
     if (FiuMode & B00000110)
     {
+ */
       PoPManagment();
-    }
-  }
+//    }
+/*   }
   //Se è falso è in modalità Fixed Frequency
   else
   {
   }
-  
+ */  
 
 
 
@@ -499,25 +500,29 @@ void CheckControllPanel()
 //#=================================================================================
 void PoPManagment()
 {
+  RotaryPush();
   uint8_t Indice = 9;//9 è il valore di indice non settato
   //Converte i tre bit di stato nell'indice per gli array associati agli encoder  
   switch (FiuMode & B0000111)
   {
   case 1:
-    Indice = 0;
+    Indice = 0;//Punta a Frequenza L
     break;
   case 2:
-    Indice = 1;
+    Indice = 1;//Punta a Frequenza H
     break;
   case 4:
-    Indice = 2;
+    Indice = 2;//Punta a Tempo di Sweep
     break;
   default:
+    Indice = 9;//Indice sconosciuto
     break;
   }
-  //Se nessuna PoP è stata creata la crea e gli assegna il titolo, il primo valore
+  //Se nessuna PoP è attiva ma è richiesta l'attivazione 
+  //CREA
+  //la PoP e gli assegna il titolo, il primo valore
   //e l'unità di misura
-  if ((TftStatus & B0000011) == 0)
+  if (((TftStatus & B0000011) == 0) & (Indice != 9))
   {
     //Crea la PoP
     TftPopCreate(Indice);
@@ -543,7 +548,9 @@ void PoPManagment()
       FrequencyDisplay.clear(1);
     }
   }
-  //Se una PoP è attiva la gestisce
+  //Se una PoP è
+  //ATTIVA
+  // la gestisce
   if ((TftStatus & B0000011) != 0)
   {
     //Legge la rotazione degli encoder
@@ -623,6 +630,31 @@ void PoPManagment()
           break;
       }
     }
+  }
+  //Se tutte le richieste di PoP sono
+  //NON ATTIVE
+  //e lo stato del TFT riporta ancora finestre attive
+  //Riporta il sistema alla condizione originale
+  //in funzione della Modalità impostata
+  if (((FiuMode & B00000111) == 0) & (TftStatus & B00000011) != 0)
+  {
+    //Segna come spente tutte le PoP
+    TftStatus = TftStatus & B11111100;
+    //Richiede l'aggiornamento della finestra di base per la MOdalità
+    //corrente
+    //Se è in modalità Sweep
+    if (FiuMode & B10000000)
+    {
+      TftStatus = bitSet(TftStatus, 6);
+    }
+    //altrimenti è in modalità Fixed Frequency
+    else
+    {
+      TftStatus = bitSet(TftStatus, 7);
+    }
+
+    //Ricrea la finestra di base
+    TftGraphInit();
   }
 }
 
@@ -1125,9 +1157,7 @@ void RotaryPush()
   switch (FiuMode & B00000111)
   {
     case 1: //Push della frequenza principale attivo
-/*       FrequencyDisplay.printDigit(111,0);
-      delay(2000);
- */      //La frequenza principale può andare in modalità Push in tutti le modalità 
+      //La frequenza principale può andare in modalità Push in tutti le modalità 
       if (FrequencyRotary.push() == 1)
       {
         //Disattiva lo stato del bit 0
@@ -1137,9 +1167,7 @@ void RotaryPush()
       }
       break;
     case 2:
-/*       FrequencyDisplay.printDigit(222,0);
-      delay(2000);
- */      //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
+      //La frequenza Aux può andare in modalità Push solo in modalità Sweep 
       if (AuxRotary.push() == 1)
       {
         //Disattiva lo stato del bit 1
@@ -1149,8 +1177,6 @@ void RotaryPush()
       }
       break;
     case 4:
-      FrequencyDisplay.printDigit(444,0);
-      delay(2000);
       //Il tempo di Sweep può andare in modalità Push solo in modalità Sweep
       if (SweepTimeRotary.push() == 1)
       {
