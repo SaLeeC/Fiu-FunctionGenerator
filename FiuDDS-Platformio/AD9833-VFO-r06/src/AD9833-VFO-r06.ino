@@ -984,7 +984,7 @@ void TftPipCreate(uint8_t Titolo)
 uint32_t sPrintMisura(char *strMisura, uint32_t Misura, uint8_t indUnit)
 {
     // sPrintMisura("stringa", 10'000, HZ);
-    uint8_t molt, ind0 = 0;
+    uint8_t molt = 0, ind0 = 0;
     uint32_t valMisura = Misura;
     if (Misura>=1000) { molt = 1; valMisura /= 1000;}   // Misura/1000
     if (Misura>=1000000) { molt = 2; valMisura /= 1000;} // Misura/1000000
