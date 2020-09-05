@@ -10,6 +10,10 @@
 		{
 			"name": "AD9833-VFO-r06",
 			"path": "AD9833-VFO-r06"
+		},
+		{
+			"name": "AD9833-SelControlUnit-VFO-r00",
+			"path": "AD9833-SelfControlUnit-VFO-r00\\AD9833-SelControlUnit-VFO-r00"
 		}
 	],
 	"settings": {}

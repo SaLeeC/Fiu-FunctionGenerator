@@ -394,6 +394,13 @@ void loop()
   //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT
   CheckControllPanel();
   PoPManagment();
+  //Se non è attiva alcuna PoP controlla se gli encoder sono stati mossi
+  if(!(FiuMode & B00000111))
+  {
+    //Aggiorna lo stato degli encoder
+    RotaryTurn();
+    
+  } 
 
 }
 
