@@ -1,0 +1,6 @@
+Nel progetto Fiu viene introdotto il secondo processore.
+Inizialmente questo processore slave controllerà i 6 pulsanti di interfaccia
+(F1, F2, F3, Push Frqency, Push Aux, Push Sweep Time)
+In seguito prenderà il controllo del DDS con la generazione delle sequenze per
+le funzioni di Sweep
+Versione 0
