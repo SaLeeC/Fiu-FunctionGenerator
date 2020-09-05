@@ -86,9 +86,9 @@ uint8_t FiuMode = FixedFrequency +
 #define AD9833FSYNC 12  ///< SPI Load pin number (FSYNC in AD9833 usage)
 
 //Generatore 0 Bassa Frequenza (1Hz to 12.5MHz)
-//MD_AD9833  AD(AD9833FSYNC); // Hardware SPI
+MD_AD9833  AD(AD9833FSYNC); // Hardware SPI
 //MD_AD9833 AD(AD9833DATA, AD9833CLK, AD9833FSYNC); // Arbitrary SPI pins
-//MD_AD9833::channel_t chan;
+MD_AD9833::channel_t chan;
 
 const int wSine     = 0b0000000000000000;
 const int wTriangle = 0b0000000000000010;
@@ -376,7 +376,7 @@ void setup()
   delay(3000);
   
   //Inizializza il genertore 0
-  //AD.begin();
+  AD.begin();
   AD9833reset();
 
   //Inizializza il display TfT con la grafica per modalià Fixed Frequency
