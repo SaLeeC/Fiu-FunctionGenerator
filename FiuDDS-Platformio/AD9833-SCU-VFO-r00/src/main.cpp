@@ -34,6 +34,10 @@ void task_wait_spi(void *pvParameters)
 
         rxSPI.wait(spi_slave_rx_buf, spi_slave_tx_buf, BUFFER_SIZE);
 
+        String taskMessage = "SPI wait running on core ";
+        taskMessage = taskMessage + xPortGetCoreID();
+        Serial.println(taskMessage);
+
         xTaskNotifyGive(task_handle_process_buffer);
     }
 }
@@ -43,6 +47,10 @@ void task_process_buffer(void *pvParameters)
     while(1)
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        String taskMessage = "Buffer print running on core ";
+        taskMessage = taskMessage + xPortGetCoreID();
+        Serial.println(taskMessage);
 
         // show received data
         for (size_t i = 0; i < BUFFER_SIZE; ++i)
@@ -77,6 +85,7 @@ void setup()
     // HSPI = CS: 15, CLK: 14, MOSI: 13, MISO: 12
     rxSPI.begin(HSPI);
 
+    printf("Main code running on core : %d\n", xPortGetCoreID());
 
     xTaskCreatePinnedToCore(task_wait_spi, "task_wait_spi", 2048, NULL, 2, &task_handle_wait_spi, CORE_TASK_SPI_SLAVE);
     xTaskNotifyGive(task_handle_wait_spi);

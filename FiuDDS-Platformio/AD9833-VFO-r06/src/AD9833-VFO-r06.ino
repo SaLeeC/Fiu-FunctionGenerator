@@ -77,6 +77,7 @@ uint8_t FiuMode = FixedFrequency +
                   EncoderAuxNormal +
                   EncoderFrequencyNormal;
 
+char spibuffer[] = "123456789 123456789 123456789 123456789 1234567890 123456789 1234";
 //#=================================================================================
 // AD9833 IC area
 // DDS Generator
@@ -113,12 +114,16 @@ float Frequency[4] = {1,1,1,1};
 uint8_t  CurrentGenerator=Generator0;
 
 #define WaveTypeNumber 3
+#define LimitL 0
+#define LimitH 1
+#define LimitFreqL 0
+#define LimitFreqH 1
 
 //Tipo corrente della forma d'onda per ogni generatore
 #define Sine 0
 #define Triangle 1
 #define Square 2
-int8_t  FrequencyWaveCurrentType[2] = {Sine,Sine};
+int8_t  FrequencyWaveCurrentType = Sine;
 
 //Feasi per la selezione della forma d'onda nel generatore
 uint8_t  FrequencyWaveType[WaveTypeNumber] = {0b0000000000000000,
@@ -128,7 +133,10 @@ uint8_t  FrequencyWaveType[WaveTypeNumber] = {0b0000000000000000,
 //oltre certe frequenze la sinusoide e la trinagolare degenerano degradando la qualità,
 //al fine di produrre toni di qualità accettabile ho scelto di limitarlo in frequenza
 //in maniera differenziata per forma d'onda
-uint32_t FrequencyLimit[WaveTypeNumber][2] = {  1,  5000000,
+//Il primo indice seleziona la forma d'onda
+//Il secondo indice indica se il limite puntato è il limite basso o quello alto
+//Il terzo indice indica se il limite si riferisce alla Frqenza L o alla Frequenza H
+uint32_t FrequencyLimit[WaveTypeNumber][2][2] = {  1,  5000000,
                                                 1,  5000000,
                                                 1, 12500000};
 
@@ -364,8 +372,8 @@ void setup()
 
   //Inizializza le variabili di stato
   CurrentGenerator = Generator0;
-  FrequencyWaveCurrentType [CurrentGenerator] = Sine;
-  Frequency[FreqL] = FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][CurrentGenerator];
+  FrequencyWaveCurrentType = Sine;
+  Frequency[FreqL] = FrequencyLimit[FrequencyWaveCurrentType][CurrentGenerator][0];
 
   //Manda il messaggio di benvenuto sui display sette segmenti
   SevenSegHello();
@@ -390,6 +398,10 @@ void setup()
 //#=================================================================================
 void loop()
 {
+
+  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  SPI.transfer(spibuffer, 64);
+
   //Controlla se è stato premuto il bottone per modificare la modalità di
   //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT
   CheckControllPanel();
@@ -409,11 +421,21 @@ void loop()
     {
       //Controlla se è stato girato l'encoder della frequenza L
       if(RotaryState & B00000011)
-      RotaryState = RotaryState & B00000011;
-      Frequency[0] = RotaryTurnAction(Frequency[0],
-                                      FrequencyStepValue[0],
-                                      FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0],
-                                      FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]);
+      {
+        //Se è stato girato elimina le informazioni provenienti dagli altri encoder 
+        RotaryState = RotaryState & B00000011;
+        //E attua la modifica richiesta con la rotazione
+        Frequency[FreqL] = RotaryTurnAction(Frequency[FreqL],
+                                        FrequencyStepValue[0],
+                                        FrequencyLimit[FrequencyWaveCurrentType][LimitFreqL][FreqL],
+                                        FrequencyLimit[FrequencyWaveCurrentType][LimitH][FreqL]);
+        //Aggiorna la visualizzazione sul display 7 segmenti
+        FrequencyDisplay.printDigit(Frequency[FreqL], 0);
+        //Aggiorna il limite inferiore della Frequency H ponendolo al valore attuale della Frequency L
+        FrequencyLimit[FrequencyWaveCurrentType][LimitL][FreqH] = Frequency[FreqL];
+        //Aggiorna la presentazione dei limiti sul TFT
+        TftFrequencyLimit();
+      }
     }
     else
     {
@@ -476,11 +498,11 @@ void CheckControllPanel()
       if(digitalRead(PushWave)==LOW)
       {
         //Aggiorna la forma d'onda corrente
-        FrequencyWaveCurrentType[0] ++;
+        ++ FrequencyWaveCurrentType;
         //controlla il superamento del numero di forme d'onda previste
-        FrequencyWaveCurrentType[0] = FrequencyWaveCurrentType[0] % WaveTypeNumber;
+        FrequencyWaveCurrentType %= WaveTypeNumber;
         //Aggiorna la presentazione della forma d'onda corrente
-        TftCurrentWave(FrequencyWaveCurrentType[0]);
+        TftCurrentWave(FrequencyWaveCurrentType);
         //Aspetta il rilascio del pulsante
         while(digitalRead(PushWave)==LOW)
         {
@@ -837,11 +859,11 @@ void TftFrequencyLimit()
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(46, 128, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
+  TftPrintIntDxGiustify(46, 128, 1, FrequencyLimit[FrequencyWaveCurrentType][0], HZ);
   //Stampa il valore allineato a Dx tramite la routines specializzata
   TftPrintIntDxGiustify(46, 119, 1, FrequencyStepValue[0], HZ);
   //Stampa il valore allineato a Dx tramite la routines specializzata
-  TftPrintIntDxGiustify(46, 110, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1], HZ);
+  TftPrintIntDxGiustify(46, 110, 1, FrequencyLimit[FrequencyWaveCurrentType][1], HZ);
   //Se è in modalità Sweep aggiorna anche i parametri della seconda frequenza
   if (bitRead(FiuMode,7) & ((TftStatus & B00000011) == 0)) 
   {
@@ -852,13 +874,13 @@ void TftFrequencyLimit()
     tft.setTextSize(1);
     tft.setTextColor(ST77XX_WHITE);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(46, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
+    TftPrintIntDxGiustify(46, 42, 1, FrequencyLimit[FrequencyWaveCurrentType][0], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
     TftPrintIntDxGiustify(46, 32, 1, FrequencyStepValue[1], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(46, 22, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1], HZ);
+    TftPrintIntDxGiustify(46, 22, 1, FrequencyLimit[FrequencyWaveCurrentType][1], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
-    TftPrintIntDxGiustify(46, 42, 1, FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0], HZ);
+    TftPrintIntDxGiustify(46, 42, 1, FrequencyLimit[FrequencyWaveCurrentType][0], HZ);
     //Stampa il valore allineato a Dx tramite la routines specializzata
     TftPrintIntDxGiustify(109, 42, 1, FrequencyStepValue[2], SEC);
     //Stampa il valore allineato a Dx tramite la routines specializzata
@@ -991,7 +1013,7 @@ void TftGraphInit()
 
     TftFrequencyLimit(); 
     //Stampa la forma d'onda generata (serve in entrambe le modalità)
-    TftCurrentWave(FrequencyWaveCurrentType[0]);
+    TftCurrentWave(FrequencyWaveCurrentType);
     tft.setCursor(0,0);
     tft.setTextSize(2);
     //Modalità Frequenza Fissa
