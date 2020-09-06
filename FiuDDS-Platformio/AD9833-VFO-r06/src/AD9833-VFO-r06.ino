@@ -399,6 +399,30 @@ void loop()
   {
     //Aggiorna lo stato degli encoder
     RotaryTurn();
+    //Se Uno degli encoder è stato ruotato
+    if(RotaryState)
+    //Gestisce solo il primo encoder che risulta mosso nell'ordine
+    //Frequency
+    //Aux
+    //Sweep Time
+    //La gestione è condizionata dalla modalità di funzionamento corrente
+    {
+      //Controlla se è stato girato l'encoder della frequenza L
+      if(RotaryState & B00000011)
+      RotaryState = RotaryState & B00000011;
+      Frequency[0] = RotaryTurnAction(Frequency[0],
+                                      FrequencyStepValue[0],
+                                      FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][0],
+                                      FrequencyLimit[FrequencyWaveCurrentType[CurrentGenerator]][1]);
+    }
+    else
+    {
+      //Se è in modalità Sweep prosegue altrimenti salta
+      if (FiuMode & B10000000)
+      {
+        RotaryState >> 2;
+      }
+    }
     
   } 
 
