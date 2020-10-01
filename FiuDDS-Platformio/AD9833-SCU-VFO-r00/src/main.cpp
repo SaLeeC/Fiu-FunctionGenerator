@@ -2,9 +2,15 @@
 
 #include <ESP32DMASPISlave.h>
 
+void sweepgenCreate(float FL, float FH, float TSweep);
+#define freqSerieMaxLeng 2048
+uint32_t freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
+uint16_t freqSerieEndSerie = 0;//Numero degli elementi caricati per lo sweep
+uint32_t freqSerieTStep = 0;//Tempo in uS fra uno step e il successivo
+
 ESP32DMASPI::Slave rxSPI;
 
-static const uint32_t BUFFER_SIZE = 256;
+static const uint32_t BUFFER_SIZE = 70;
 uint8_t* spi_slave_tx_buf;
 uint8_t* spi_slave_rx_buf;
 
@@ -54,7 +60,10 @@ void task_process_buffer(void *pvParameters)
 
         // show received data
         for (size_t i = 0; i < BUFFER_SIZE; ++i)
-            printf("%d ", spi_slave_rx_buf[i]);
+        {
+            printf("%c", spi_slave_rx_buf[i]);
+            //spi_slave_tx_buf[i] = ++spi_slave_rx_buf[i];
+        }
         printf("\n");
 
         rxSPI.pop();
@@ -63,6 +72,20 @@ void task_process_buffer(void *pvParameters)
     }
 }
 
+void sweepgenCreate(uint32_t FL, uint32_t FH, uint32_t TSweep)
+/*
+Genera la sequenza di frequenze per far sweepare il DDS
+Le sequenze di frequenze limite sono FL e FH le quali sono espresse in Hz.
+Il tempo di ciclo è definito da TSweep il quale è espresso in uS.
+La sequenza è salvata nell'array freqSerie[] che può avere sino a 2048 elementi
+Il numero di elementi utilizzato per descrivere la serie è in freqSerieEndSerie
+Il tempo fra uno step e il successivo è in freqSerieTStep ed è espresso in uS
+*/
+{
+  //Calcola il deltaF
+  uint32_t deltaF = FH - FL;
+  
+}
 
 void setup()
 {
@@ -94,5 +117,6 @@ void setup()
 }
 
 void loop() {
+    Serial.println("ESP32");
   // put your main code here, to run repeatedly:
 }
