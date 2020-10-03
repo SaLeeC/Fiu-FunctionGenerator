@@ -77,7 +77,6 @@ uint8_t FiuMode = FixedFrequency +
                   EncoderAuxNormal +
                   EncoderFrequencyNormal;
 
-char spibuffer[] = "123456789 123456789 123456789 123456789 1234567890 123456789 1234";
 //#=================================================================================
 // AD9833 IC area
 // DDS Generator
@@ -389,6 +388,10 @@ void setup()
 
   //Inizializza il display TfT con la grafica per modalià Fixed Frequency
   TftGraphInit();
+
+  // set the slaveSelectPin as an output:
+  pinMode(9, OUTPUT);
+  digitalWrite(9, HIGH); // disable Slave Select
 }
 
 
@@ -399,8 +402,12 @@ void setup()
 void loop()
 {
 
-  SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
-  SPI.transfer(spibuffer, 64);
+  char spibuffer[] = "123456789 123456789 123456789 123456789 123456789 123456789 123412341234";
+  digitalWrite(9, LOW); // enable Slave Select
+  SPI.beginTransaction(SPISettings(000000, MSBFIRST, SPI_MODE1));
+  SPI.transfer(spibuffer, 68);
+  SPI.endTransaction();
+  digitalWrite(9, HIGH); // disable Slave Select
 
   //Controlla se è stato premuto il bottone per modificare la modalità di
   //funzionamento corrente e nel caso, aggiorna la presentazione grafica del TFT

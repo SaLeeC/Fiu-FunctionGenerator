@@ -7,6 +7,10 @@
 		{
 			"name": "AD9833-VFO-r06",
 			"path": "AD9833-VFO-r06"
+		},
+		{
+			"name": "AD9833-SCU-VFO-r00",
+			"path": "AD9833-SCU-VFO-r00"
 		}
 	],
 	"settings": {}

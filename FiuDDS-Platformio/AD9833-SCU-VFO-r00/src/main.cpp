@@ -84,6 +84,8 @@ Il tempo fra uno step e il successivo è in freqSerieTStep ed è espresso in uS
 {
   //Calcola il deltaF
   uint32_t deltaF = FH - FL;
+  //Calcola il deltaF/T
+  float deltaFT = deltaF / TSweep;
   
 }
 
