@@ -2,7 +2,7 @@
 
 #include <ESP32DMASPISlave.h>
 
-void sweepgenCreate(float FL, float FH, float TSweep);
+void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode);
 #define freqSerieMaxLeng 2048
 uint32_t freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
 uint16_t freqSerieEndSerie = 0;//Numero degli elementi caricati per lo sweep
@@ -72,7 +72,7 @@ void task_process_buffer(void *pvParameters)
     }
 }
 
-void sweepgenCreate(uint32_t FL, uint32_t FH, uint32_t TSweep)
+void sweepgenCreate(uint32_t FL, uint32_t FH, uint32_t TSweep, uint8_t SweepMode)
 /*
 Genera la sequenza di frequenze per far sweepare il DDS
 Le sequenze di frequenze limite sono FL e FH le quali sono espresse in Hz.
@@ -80,10 +80,75 @@ Il tempo di ciclo è definito da TSweep il quale è espresso in uS.
 La sequenza è salvata nell'array freqSerie[] che può avere sino a 2048 elementi
 Il numero di elementi utilizzato per descrivere la serie è in freqSerieEndSerie
 Il tempo fra uno step e il successivo è in freqSerieTStep ed è espresso in uS
+SweepMode definisce la tipologia di distribuzione delle frequenze durante lo sweep
+0 = Rampa Ascendente
+1 = Rampa discendente
+2 = trinagolare (simmetrica)
+4 = sinusoidale
+16 = andamento logaritmico
 */
 {
+  uint32_t deltaF;
+  //Inizializza il numero di elementi caricati nell'array al massimo valore caricabile
+  freqSerieEndSerie = freqSerieMaxLeng; 
   //Calcola il deltaF
-  uint32_t deltaF = FH - FL;
+  deltaF = FH - FL;
+  //Se deltaF espresso in Hz è inferiore a freqSerieMaxLeng i valori della serie
+  //dello sweep sono inferiori alla dimensione dell'Array.
+  //Fissa il numero di celle dell'Array utilizzate
+  if (deltaF < freqSerieMaxLeng)
+  {
+    freqSerieEndSerie = deltaF;
+  }
+  //Inizializza la prima casella della serie
+  //e calcola lo step di avanzamento per la frequenza nei casi in
+  //cui il processo sia lineare
+  switch (SweepMode)
+  {
+  case 0://Rampa ascendente
+      freqSerie[0] = FL;
+      //Step di avanzamento calcolato cme (FH-FL)/numero passi
+      deltaF /= freqSerieEndSerie;
+      break;
+  case 1://
+      freqSerie[0] = FH;
+      //Step di avanzamento calcolato cme (FH-FL)/numero passi
+      deltaF /= freqSerieEndSerie;
+      break;
+  case 2://
+      freqSerie[0] = FL + (deltaF/2);
+      deltaF /= freqSerieEndSerie;
+      break;
+  case 4://
+      freqSerie[0] = FL + (deltaF/2);
+      deltaF = 0;//Deve essere stabilito step per step dalla funzione di caricamento
+      break;
+  default:
+      break;
+  }
+  //Apre il loop di popolamento dell'Array
+  for(uint16_t ii = 1; ii < freqSerieEndSerie; ii++)//per tutte le celle dell'Array
+  {
+    //Sceglie il processo di popolamento dell'Array
+    switch (SweepMode)
+    {
+    case 0://Rampa ascendente
+      freqSerie[ii] = freqSerie[ii - 1] + deltaF;
+      break;
+    case 1://Rampa discendente
+      freqSerie[ii] = freqSerie[ii - 1] - deltaF;
+      break;
+    case 2://Triangolare (simmetrica)
+      
+      freqSerie[ii] = freqSerie[ii] - deltaF;
+      break;
+    case 4://Sinusoidale
+      /* code */
+      break;
+    default:
+      break;
+    }
+  }
   //Calcola il deltaF/T
   float deltaFT = deltaF / TSweep;
   
