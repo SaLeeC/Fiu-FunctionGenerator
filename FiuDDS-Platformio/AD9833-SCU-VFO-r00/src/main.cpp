@@ -3,9 +3,10 @@
 #include <ESP32DMASPISlave.h>
 
 void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode);
-#define freqSerieMaxLeng 2048
+//#define freqSerieMaxLeng 2048
+#define freqSerieMaxLeng 64
 uint32_t freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
-uint16_t freqSerieEndSerie = 0;//Numero degli elementi caricati per lo sweep
+uint16_t freqSerieNumActiveElement = 0;//Numero degli elementi caricati per lo sweep
 uint32_t freqSerieTStep = 0;//Tempo in uS fra uno step e il successivo
 
 ESP32DMASPI::Slave rxSPI;
@@ -72,13 +73,13 @@ void task_process_buffer(void *pvParameters)
     }
 }
 
-void sweepgenCreate(uint32_t FL, uint32_t FH, uint32_t TSweep, uint8_t SweepMode)
+void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode)
 /*
 Genera la sequenza di frequenze per far sweepare il DDS
 Le sequenze di frequenze limite sono FL e FH le quali sono espresse in Hz.
 Il tempo di ciclo è definito da TSweep il quale è espresso in uS.
 La sequenza è salvata nell'array freqSerie[] che può avere sino a 2048 elementi
-Il numero di elementi utilizzato per descrivere la serie è in freqSerieEndSerie
+Il numero di elementi utilizzato per descrivere la serie è in freqSerieNumActiveElement
 Il tempo fra uno step e il successivo è in freqSerieTStep ed è espresso in uS
 SweepMode definisce la tipologia di distribuzione delle frequenze durante lo sweep
 0 = Rampa Ascendente
@@ -90,7 +91,7 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
 {
   uint32_t deltaF;
   //Inizializza il numero di elementi caricati nell'array al massimo valore caricabile
-  freqSerieEndSerie = freqSerieMaxLeng; 
+  freqSerieNumActiveElement = freqSerieMaxLeng; 
   //Calcola il deltaF
   deltaF = FH - FL;
   //Se deltaF espresso in Hz è inferiore a freqSerieMaxLeng i valori della serie
@@ -98,59 +99,69 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
   //Fissa il numero di celle dell'Array utilizzate
   if (deltaF < freqSerieMaxLeng)
   {
-    freqSerieEndSerie = deltaF;
+    freqSerieNumActiveElement = deltaF;
   }
   //Inizializza la prima casella della serie
   //e calcola lo step di avanzamento per la frequenza nei casi in
   //cui il processo sia lineare
-  switch (SweepMode)
+  deltaF /= freqSerieNumActiveElement;
+  //Se la ssequenza e inversa fa partire la serie dal valire massimo
+  if (SweepMode & B00000001)
   {
-  case 0://Rampa ascendente
-      freqSerie[0] = FL;
-      //Step di avanzamento calcolato cme (FH-FL)/numero passi
-      deltaF /= freqSerieEndSerie;
-      break;
-  case 1://
-      freqSerie[0] = FH;
-      //Step di avanzamento calcolato cme (FH-FL)/numero passi
-      deltaF /= freqSerieEndSerie;
-      break;
-  case 2://
-      freqSerie[0] = FL + (deltaF/2);
-      deltaF /= freqSerieEndSerie;
-      break;
-  case 4://
-      freqSerie[0] = FL + (deltaF/2);
-      deltaF = 0;//Deve essere stabilito step per step dalla funzione di caricamento
-      break;
-  default:
-      break;
+    freqSerie[0] = FH;
   }
+  //altrimenti parte dal valire minimo
+  else
+  {
+      freqSerie[0] = FL;
+  }
+  //Calcola il passo angolare in frazioni di 2Pigreco per la sinusoide
+  float passoAngolare = (2.0 * PI) / freqSerieNumActiveElement;
   //Apre il loop di popolamento dell'Array
-  for(uint16_t ii = 1; ii < freqSerieEndSerie; ii++)//per tutte le celle dell'Array
+  ////il contatore ii è inizializzato come float per permettere i calcoli della sinusoide
+  ////senza conversioni ripetute
+  for(int32_t ii = 1; ii < freqSerieNumActiveElement; ii++)//per tutte le celle dell'Array
   {
     //Sceglie il processo di popolamento dell'Array
     switch (SweepMode)
     {
-    case 0://Rampa ascendente
+    case 0://Rampa ascendente-popola per somma
       freqSerie[ii] = freqSerie[ii - 1] + deltaF;
       break;
-    case 1://Rampa discendente
+    case 1://Rampa discendente-popola per differenza
       freqSerie[ii] = freqSerie[ii - 1] - deltaF;
       break;
-    case 2://Triangolare (simmetrica)
+    case 2://Triangolare (simmetrica)-popola con un doppio passo
+      deltaF += deltaF;//Raddopia il passo
+      //Per la prima metà dei passi va in salita
+      if (ii >= (freqSerieNumActiveElement/2))
+      {
+        freqSerie[ii] = freqSerie[ii-1] + deltaF;
+      }
+      //Per la seconda metà dei passi va in discesa
+      else
+      {
+          freqSerie[ii] = freqSerie[ii-1] - deltaF;
+      }
       
-      freqSerie[ii] = freqSerie[ii] - deltaF;
       break;
     case 4://Sinusoidale
-      /* code */
+      //Lo split di (freqSerieNumActiveElement/4) serve a ritardare di 90° la simulazione
+      //della sinusoide così da partire dal valore minimo (FL)
+      //freqSerie[ii] = (float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare);
+      freqSerie[ii] = (FL + ((FH - FL) / 2.0)) + (((FH - FL) / 2.0) * sin((float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare));
+      Serial.print(float(ii));
+      Serial.print(" - ");
+      Serial.print((freqSerieNumActiveElement/4.0));
+      Serial.print(" * ");
+      Serial.print(passoAngolare,8);
+      Serial.print(" | ");
+      Serial.println(sin((float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare),8);
       break;
     default:
       break;
     }
   }
-  //Calcola il deltaF/T
-  float deltaFT = deltaF / TSweep;
   
 }
 
@@ -159,7 +170,16 @@ void setup()
   // put your setup code here, to run once:
     Serial.begin(115200);
 
-    // to use DMA buffer, use these methods to allocate buffer
+    sweepgenCreate(1000, 10000,2000, 4);
+    for(int ii = 0; ii < freqSerieNumActiveElement; ii++)
+    {
+      Serial.print(ii);
+      Serial.print(" - ");
+      Serial.println(freqSerie[ii]);
+      delay(500);
+    }
+
+/*     // to use DMA buffer, use these methods to allocate buffer
     spi_slave_tx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
     spi_slave_rx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
 
@@ -181,9 +201,9 @@ void setup()
     xTaskNotifyGive(task_handle_wait_spi);
 
     xTaskCreatePinnedToCore(task_process_buffer, "task_process_buffer", 2048, NULL, 2, &task_handle_process_buffer, CORE_TASK_PROCESS_BUFFER);
-}
+ */}
 
 void loop() {
-    Serial.println("ESP32");
+  //  Serial.println("ESP32");
   // put your main code here, to run repeatedly:
 }
