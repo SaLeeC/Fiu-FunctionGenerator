@@ -117,16 +117,30 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
   }
   //Calcola il passo angolare in frazioni di 2Pigreco per la sinusoide
   float passoAngolare = (2.0 * PI) / freqSerieNumActiveElement;
+  //Controlla se è richiesta la sinusoide nel qual caso setta deltaF a delta/2 per snellire il calcolo
+  if((SweepMode & B00000100) != 0)
+  {
+    deltaF = (FH - FL) / 2.0;
+  }
+  //Inizializza i riferimenti per la curva logaritmica
+  float stepLog = (log10(FH) - log10(FL)) / freqSerieNumActiveElement;//calcola il passo per coprire l'intero sweep
   //Apre il loop di popolamento dell'Array
-  ////il contatore ii è inizializzato come float per permettere i calcoli della sinusoide
-  ////senza conversioni ripetute
   for(int32_t ii = 1; ii < freqSerieNumActiveElement; ii++)//per tutte le celle dell'Array
   {
     //Sceglie il processo di popolamento dell'Array
     switch (SweepMode)
     {
-    case 0://Rampa ascendente-popola per somma
-      freqSerie[ii] = freqSerie[ii - 1] + deltaF;
+    case 0://Rampa ascendente-popola per somma con andamento lineare o logaritmico
+      //Se la progressione è lineare
+      if((SweepMode & B00010000) == 0)
+      {
+        freqSerie[ii] = freqSerie[ii - 1] + deltaF;
+      }
+      //Se la progressione è logaritmica
+      else
+      {
+        freqSerie[ii] = pow(10,(log10(freqSerie[ii-1]) + stepLog));
+      }
       break;
     case 1://Rampa discendente-popola per differenza
       freqSerie[ii] = freqSerie[ii - 1] - deltaF;
@@ -143,13 +157,13 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
       {
           freqSerie[ii] = freqSerie[ii-1] - deltaF;
       }
-      
       break;
     case 4://Sinusoidale
+      //In questa modalità deltaF vale delta/2
       //Lo split di (freqSerieNumActiveElement/4) serve a ritardare di 90° la simulazione
       //della sinusoide così da partire dal valore minimo (FL)
       //freqSerie[ii] = (float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare);
-      freqSerie[ii] = (FL + ((FH - FL) / 2.0)) + (((FH - FL) / 2.0) * sin((float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare));
+      freqSerie[ii] = (FL + deltaF) + (deltaF * sin((float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare));
       Serial.print(float(ii));
       Serial.print(" - ");
       Serial.print((freqSerieNumActiveElement/4.0));
