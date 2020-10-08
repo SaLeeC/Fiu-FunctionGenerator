@@ -5,7 +5,8 @@
 void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode);
 //#define freqSerieMaxLeng 2048
 #define freqSerieMaxLeng 64
-uint32_t freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
+//uint32_t freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
+float freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
 uint16_t freqSerieNumActiveElement = 0;//Numero degli elementi caricati per lo sweep
 uint32_t freqSerieTStep = 0;//Tempo in uS fra uno step e il successivo
 
@@ -113,10 +114,15 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
   //altrimenti parte dal valire minimo
   else
   {
-      freqSerie[0] = FL;
+    freqSerie[0] = FL;
   }
   //Calcola il passo angolare in frazioni di 2Pigreco per la sinusoide
   float passoAngolare = (2.0 * PI) / freqSerieNumActiveElement;
+  //Se è richiesta la triangolare raddoppia il passo
+  if((SweepMode & B00000010) != 0)
+  {
+      deltaF += deltaF;//Raddopia il passo
+  }
   //Controlla se è richiesta la sinusoide nel qual caso setta deltaF a delta/2 per snellire il calcolo
   if((SweepMode & B00000100) != 0)
   {
@@ -130,53 +136,37 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
     //Sceglie il processo di popolamento dell'Array
     switch (SweepMode)
     {
-    case 0://Rampa ascendente-popola per somma con andamento lineare o logaritmico
-      //Se la progressione è lineare
-      if((SweepMode & B00010000) == 0)
-      {
-        freqSerie[ii] = freqSerie[ii - 1] + deltaF;
-      }
-      //Se la progressione è logaritmica
-      else
-      {
-        freqSerie[ii] = pow(10,(log10(freqSerie[ii-1]) + stepLog));
-      }
+    case 0://Rampa ascendente-popola per somma con andamento lineare
+      freqSerie[ii] = freqSerie[ii - 1] + deltaF;
       break;
     case 1://Rampa discendente-popola per differenza
       freqSerie[ii] = freqSerie[ii - 1] - deltaF;
       break;
     case 2://Triangolare (simmetrica)-popola con un doppio passo
-      deltaF += deltaF;//Raddopia il passo
       //Per la prima metà dei passi va in salita
-      if (ii >= (freqSerieNumActiveElement/2))
+      if (ii <= (freqSerieNumActiveElement/2))
       {
         freqSerie[ii] = freqSerie[ii-1] + deltaF;
       }
       //Per la seconda metà dei passi va in discesa
       else
       {
-          freqSerie[ii] = freqSerie[ii-1] - deltaF;
+        freqSerie[ii] = freqSerie[ii-1] - deltaF;
       }
       break;
     case 4://Sinusoidale
       //In questa modalità deltaF vale delta/2
       //Lo split di (freqSerieNumActiveElement/4) serve a ritardare di 90° la simulazione
       //della sinusoide così da partire dal valore minimo (FL)
-      //freqSerie[ii] = (float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare);
       freqSerie[ii] = (FL + deltaF) + (deltaF * sin((float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare));
-      Serial.print(float(ii));
-      Serial.print(" - ");
-      Serial.print((freqSerieNumActiveElement/4.0));
-      Serial.print(" * ");
-      Serial.print(passoAngolare,8);
-      Serial.print(" | ");
-      Serial.println(sin((float(ii) - (freqSerieNumActiveElement/4.0)) * passoAngolare),8);
+      break;
+    case 16://Rampa ascendente-popola per somma con andamento logaritmico
+      freqSerie[ii] = pow(10,(log10(freqSerie[ii-1]) + stepLog));
       break;
     default:
       break;
     }
   }
-  
 }
 
 void setup()
@@ -184,14 +174,25 @@ void setup()
   // put your setup code here, to run once:
     Serial.begin(115200);
 
-    sweepgenCreate(1000, 10000,2000, 4);
-    for(int ii = 0; ii < freqSerieNumActiveElement; ii++)
-    {
-      Serial.print(ii);
-      Serial.print(" - ");
-      Serial.println(freqSerie[ii]);
-      delay(500);
-    }
+    Serial.println(micros());
+    sweepgenCreate(10, 1000,2000, 0);
+    Serial.println(micros());
+
+    Serial.println(micros());
+    sweepgenCreate(10, 1000,2000, 1);
+    Serial.println(micros());
+
+    Serial.println(micros());
+    sweepgenCreate(10, 1000,2000, 2);
+    Serial.println(micros());
+
+    Serial.println(micros());
+    sweepgenCreate(10, 1000,2000, 4);
+    Serial.println(micros());
+
+    Serial.println(micros());
+    sweepgenCreate(10, 1000,2000, 16);
+    Serial.println(micros());
 
 /*     // to use DMA buffer, use these methods to allocate buffer
     spi_slave_tx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
