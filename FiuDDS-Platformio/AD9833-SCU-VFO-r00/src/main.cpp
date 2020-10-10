@@ -9,6 +9,9 @@ void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode);
 float freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
 uint16_t freqSerieNumActiveElement = 0;//Numero degli elementi caricati per lo sweep
 uint32_t freqSerieTStep = 0;//Tempo in uS fra uno step e il successivo
+#define DACTotalStep 256.0
+float DACSerieKStep;
+uint16_t DACSerie[int(DACTotalStep)];
 
 ESP32DMASPI::Slave rxSPI;
 
@@ -76,18 +79,26 @@ void task_process_buffer(void *pvParameters)
 
 void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode)
 /*
+----------------------------------------------------------------------------------------
 Genera la sequenza di frequenze per far sweepare il DDS
 Le sequenze di frequenze limite sono FL e FH le quali sono espresse in Hz.
 Il tempo di ciclo è definito da TSweep il quale è espresso in uS.
 La sequenza è salvata nell'array freqSerie[] che può avere sino a 2048 elementi
 Il numero di elementi utilizzato per descrivere la serie è in freqSerieNumActiveElement
 Il tempo fra uno step e il successivo è in freqSerieTStep ed è espresso in uS
+----------------------------------------------------------------------------------------
 SweepMode definisce la tipologia di distribuzione delle frequenze durante lo sweep
 0 = Rampa Ascendente
 1 = Rampa discendente
 2 = trinagolare (simmetrica)
 4 = sinusoidale
 16 = andamento logaritmico
+----------------------------------------------------------------------------------------
+Viene anche generata la sequenza di valori per la generazione di una tensione con la 
+stessa forma d-onda dello sweep. Questa tensione pu; essere utilizzata come asse X di un
+oscilloscopio per visualizzazione sincronizzata rispetto allo sweep dei segnali.
+La tensione viene generata con un DAC da 256 passi. I passi sono normalizzati in maniera
+da coprire sempre tutta l-escursione dello sweep.
 */
 {
   uint32_t deltaF;
@@ -102,6 +113,8 @@ SweepMode definisce la tipologia di distribuzione delle frequenze durante lo swe
   {
     freqSerieNumActiveElement = deltaF;
   }
+  //calcola il rapporto fra i passi F e i passi V (passi del DAC)
+  DACSerieKStep = freqSerieNumActiveElement/DACTotalStep;
   //Inizializza la prima casella della serie
   //e calcola lo step di avanzamento per la frequenza nei casi in
   //cui il processo sia lineare
