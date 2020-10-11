@@ -2,10 +2,36 @@
 
 #include <ESP32DMASPISlave.h>
 
-void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode);
+/*
+Il processo di controllo del DDS gira autonomamente nel core 1 mentre tutti 
+i rimanenti processi girano nel core 0.
+Questo consente di ottenere la massima velocità nella gestione del DDS riducendo 
+le interferenze fra i processi di servizio e il processo di controllo del DDS 
+*/
+
+TaskHandle_t DDSManagement;
+
+void sweepgenCreate(float TSweep, uint8_t SweepMode);
 void DACIncrementStep(uint16_t ii);
 void DACDecrementStep(uint16_t ii);
-    
+void DDSManagementCode(void * pvParameters);
+
+//Blocco variabili di controllo dei processi
+//DDSGenMode
+//128 = Frequenza fissa
+//  0 = Rampa Ascendente
+//  1 = Rampa discendente
+//  2 = trinagolare (simmetrica)
+//  4 = sinusoidale
+// 16 = andamento logaritmico
+uint8_t DDSGenMode = 128;
+float FL, FH;
+//DDSWave
+//0 = Sinusoide
+//1 = Triangolare
+//2 = Quadra
+uint8_t DDSWave = 0;
+
 //#define freqSerieMaxLeng 2048
 #define freqSerieMaxLeng 2048
 //uint32_t freqSerie[freqSerieMaxLeng];//Sequenza di frequenze per lo sweep
@@ -84,7 +110,7 @@ void task_process_buffer(void *pvParameters)
     }
 }
 
-void sweepgenCreate(float FL, float FH, float TSweep, uint8_t SweepMode)
+void sweepgenCreate(float TSweep, uint8_t SweepMode)
 /*
 ----------------------------------------------------------------------------------------
 Genera la sequenza di frequenze per far sweepare il DDS
@@ -202,16 +228,6 @@ da coprire sempre tutta l-escursione dello sweep.
       break;
     }
   }
-
-  //Apre il loop di popolamento dellarray per il DAC
-  //Questa srie va popolata sempre tutta. La sequenza deve seguire il senso di crescita della frequenza
-  //così da assegnare sullasse delle X una posizione fissa ad ogni frequenza per cui, se la sequenza di sweep
-  //prevede un andamento misto della frequenza (triangolare o sinusoide), la tensione generata dal DAC
-  //seguirà lo stesso andamento.
-  //Il fattore di cresita di questo valore è legato SOLO al tempo trascorso e non all valore della frequenza
-  //esattamente come sarebbe il movimento dell'asse X di un oscilloscopio, ne consegue che nell'andamento
-  //logaritmico le curve derivanti saranno rappresentate come in un diagramma logaritmico e non linearizzate
-
 }
 
 void DACIncrementStep(uint16_t ii)
@@ -236,32 +252,84 @@ void DACIncrementStep(uint16_t ii)
 
 void DACDecrementStep(uint16_t ii)
 {
-    
+  DACCurrentProg += DACSerieStep;//incrementa del passo di avanzamento del DAC
+  //Se laccumulatore di passi ha superato lunità (il DAC lavora per numeri interi)
+  if(int(DACCurrentProg) >= 1)
+  {
+    //Incrementa il contenuto della cella corrente dellArray del DAC della parte intera
+    //dell'accumulatore di passo
+    DACSerie[ii] = DACSerie[ii-1] - int(DACCurrentProg);
+    //Elimina la parte intera dallaccumulatore di passo lasciando la parte decimale
+    DACCurrentProg -= int(DACCurrentProg);
+  }
+  //Se l'accumulatore di passo non ha ancora superato l'unità
+  else
+  {
+    //Conferma il valore precedente nella cella corrente dell'Array del DAC
+    DACSerie[ii] = DACSerie[ii-1];
+  } 
+}
+
+void DDSManagementCode(void * pvParameters)
+{
+  uint32_t iii = 0;//Puntatore per lo Sweep
+  //Genera uno sweep sino a quando non viene richiesta una frequenza fissa
+  while ((DDSGenMode & B10000000) == 0)
+  {
+    //Imposta la frequenza corrente
+    freqSerie[iii];
+    //Imposta la tensione corrente per il DAC
+    DACSerie[iii];
+    //Aspetta il tempo di step
+    delayMicroseconds(freqSerieTStep);
+    //Aggiorna il puntatore
+    iii++;
+    //controlla che non abbia superato il limite
+    iii %= freqSerieNumActiveElement;
+  }
+  //Imposta la frequenza fissa
+  FL;
+}
+
+//Attua la sequenza sweep 
+void sweepgen()
+{
+ 
 }
 
 void setup()
 {
+  //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
+  xTaskCreatePinnedToCore(
+                    DDSManagementCode,  /* Task function. */
+                    "DDSManagement",    /* name of task. */
+                    10000,              /* Stack size of task */
+                    NULL,               /* parameter of the task */
+                    1,                  /* priority of the task */
+                    &DDSManagement,     /* Task handle to keep track of created task */
+                    0);                 /* pin task to core 0 */                  
+
   // put your setup code here, to run once:
     Serial.begin(115200);
 
     Serial.println(micros());
-    sweepgenCreate(10, 1000,2000, 0);
+    sweepgenCreate(2000, 0);
     Serial.println(micros());
 
     Serial.println(micros());
-    sweepgenCreate(10, 1000,2000, 1);
+    sweepgenCreate(2000, 1);
     Serial.println(micros());
 
     Serial.println(micros());
-    sweepgenCreate(10, 1000,2000, 2);
+    sweepgenCreate(2000, 2);
     Serial.println(micros());
 
     Serial.println(micros());
-    sweepgenCreate(10, 1000,2000, 4);
+    sweepgenCreate(2000, 4);
     Serial.println(micros());
 
     Serial.println(micros());
-    sweepgenCreate(10, 1000,2000, 16);
+    sweepgenCreate(2000, 16);
     Serial.println(micros());
 
 /*     // to use DMA buffer, use these methods to allocate buffer
