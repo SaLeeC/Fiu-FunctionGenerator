@@ -2,6 +2,10 @@
 
 #include <ESP32DMASPISlave.h>
 
+#include <SPI.h>
+//#include <MD_cmdProcessor.h>
+#include <MD_AD9833.h>
+
 /*
 Il processo di controllo del DDS gira autonomamente nel core 1 mentre tutti 
 i rimanenti processi girano nel core 0.
@@ -45,6 +49,11 @@ float DACCurrentProg;
 //delle frequenze.
 //Il numero di celle utilizzate rimarà uguale a quello delle frequenze
 uint16_t DACSerie[freqSerieMaxLeng];
+
+// Pins for SPI comm with the AD9833 IC
+#define FSYNC 10	///< SPI Load pin number (FSYNC in AD9833 usage)
+MD_AD9833	DDS9833_0(FSYNC); // DDS AD9833 via Hardware SPI
+
 
 ESP32DMASPI::Slave rxSPI;
 
@@ -277,7 +286,7 @@ void DDSManagementCode(void * pvParameters)
   while ((DDSGenMode & B10000000) == 0)
   {
     //Imposta la frequenza corrente
-    freqSerie[iii];
+    DDS9833_0.setFrequency(MD_AD9833::CHAN_0, freqSerie[iii]);
     //Imposta la tensione corrente per il DAC
     DACSerie[iii];
     //Aspetta il tempo di step
@@ -288,7 +297,7 @@ void DDSManagementCode(void * pvParameters)
     iii %= freqSerieNumActiveElement;
   }
   //Imposta la frequenza fissa
-  FL;
+  DDS9833_0.setFrequency(MD_AD9833::CHAN_0, FL);;
 }
 
 //Attua la sequenza sweep 
