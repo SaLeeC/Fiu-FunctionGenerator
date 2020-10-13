@@ -283,7 +283,7 @@ void DDSManagementCode(void * pvParameters)
 {
   uint32_t iii = 0;//Puntatore per lo Sweep
   //Genera uno sweep sino a quando non viene richiesta una frequenza fissa
-  while ((DDSGenMode & B10000000) == 0)
+  while ((DDSGenMode & B01000000) == 0)
   {
     //Imposta la frequenza corrente
     DDS9833_0.setFrequency(MD_AD9833::CHAN_0, freqSerie[iii]);
@@ -296,8 +296,14 @@ void DDSManagementCode(void * pvParameters)
     //controlla che non abbia superato il limite
     iii %= freqSerieNumActiveElement;
   }
-  //Imposta la frequenza fissa
-  DDS9833_0.setFrequency(MD_AD9833::CHAN_0, FL);;
+  //Se è stato richiesto un cambio frequenza provvede, diversamente salta
+  if((DDSGenMode & B10000000) !=0)
+  {
+    //Imposta la frequenza fissa
+    DDS9833_0.setFrequency(MD_AD9833::CHAN_0, FL);
+    //Azzera il flag di "cambia frequenza fissa"
+    bitClear(DDSGenMode,7);
+  }
 }
 
 //Attua la sequenza sweep 
