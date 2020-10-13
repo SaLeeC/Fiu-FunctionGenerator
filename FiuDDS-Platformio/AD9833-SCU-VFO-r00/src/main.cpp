@@ -6,6 +6,11 @@
 //#include <MD_cmdProcessor.h>
 #include <MD_AD9833.h>
 
+#include <si5351.h>
+#include "Wire.h"
+
+Si5351 HSClockGen;
+
 /*
 Il processo di controllo del DDS gira autonomamente nel core 1 mentre tutti 
 i rimanenti processi girano nel core 0.
