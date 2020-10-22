@@ -14,6 +14,7 @@
 Adafruit_SI5351 HSClockGen = Adafruit_SI5351();
 #define PLLB_FREQ    87600000000
 uint32_t HSCFrequency;
+uint32_t HSCIfFrequency;
 
 /*
 Il processo di controllo del DDS gira autonomamente nel core 1 mentre tutti 
@@ -349,9 +350,10 @@ void setup()
   /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
   /* Setup PLLB to fractional mode @616.66667MHz (XTAL * 24 + 2/3) */
   /* Setup Multisynth 1 to 13.55311MHz (PLLB/45.5) */
-  HSClockGen.setupPLL(SI5351_PLL_B, 24, 2, 3);
+  HSClockGen.setupPLL(SI5351_PLL_B, 35, 1, 1);
   Serial.println("Set Output #1 to 13.553115MHz");  
-  HSClockGen.setupMultisynth(1, SI5351_PLL_B, 45, 1, 2);
+//  HSClockGen.setupMultisynth(1, SI5351_PLL_B, 33, 3704, 10000);
+  HSClockGen.setupMultisynth(1, SI5351_PLL_B, 33, 3704, 10000);
 
   /* Multisynth 2 is not yet used and won't be enabled, but can be */
   /* Use PLLB @ 616.66667MHz, then divide by 900 -> 685.185 KHz */
@@ -455,11 +457,20 @@ void setup()
 }
 
 
-#define SI5351_FREQ_MULT                100ULL
-#define SI5351_PLL_FIXED                80000000000ULL
 
 void loop() 
 {
+  HSCFrequency = 27000000;
+  HSCIfFrequency = 455000;
+  HSCFrequency -= HSCIfFrequency;
+  for (uint32_t ii=1000;ii<1000000;ii+=1000)
+  {
+    HSCFrequency+=1000;
+    HSClockGen.setupMultisynth(1, SI5351_PLL_B, int(900000000/HSCFrequency), ((900000000/HSCFrequency) - int((900000000/HSCFrequency)))/100000, 100000);
+    HSClockGen.enableOutputs(true);
+    Serial.println(HSCFrequency + HSCIfFrequency);
+    delay(500);
+  }
 
   // Read the Status Register and print it every 10 seconds
 //  Serial.println(HSCFrequency);
