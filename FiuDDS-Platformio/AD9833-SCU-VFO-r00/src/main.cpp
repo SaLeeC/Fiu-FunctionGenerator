@@ -6,10 +6,14 @@
 //#include <MD_cmdProcessor.h>
 #include <MD_AD9833.h>
 
-#include <si5351.h>
+//#include <si5351.h>
+#include <Adafruit_SI5351.h>
 #include "Wire.h"
 
-Si5351 HSClockGen;
+//Si5351 HSClockGen;
+Adafruit_SI5351 HSClockGen = Adafruit_SI5351();
+#define PLLB_FREQ    87600000000
+uint32_t HSCFrequency;
 
 /*
 Il processo di controllo del DDS gira autonomamente nel core 1 mentre tutti 
@@ -319,64 +323,173 @@ void sweepgen()
 
 void setup()
 {
-  //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
-  xTaskCreatePinnedToCore(
-                    DDSManagementCode,  /* Task function. */
-                    "DDSManagement",    /* name of task. */
-                    10000,              /* Stack size of task */
-                    NULL,               /* parameter of the task */
-                    1,                  /* priority of the task */
-                    &DDSManagement,     /* Task handle to keep track of created task */
-                    0);                 /* pin task to core 0 */                  
+ // Start serial and initialize the Si5351
+  Serial.begin(115200);
+  Serial.print("Init result ");
+  Serial.println("Si5351 Clockgen Test"); Serial.println("");
+  
+  /* Initialise the sensor */
+  if (HSClockGen.begin() != ERROR_NONE)
+  {
+    /* There was a problem detecting the IC ... check your connections */
+    Serial.print("Ooops, no Si5351 detected ... Check your wiring or I2C ADDR!");
+    while(1);
+  }
+  Serial.println("OK!");
 
-  // put your setup code here, to run once:
-    Serial.begin(115200);
+  /* INTEGER ONLY MODE --> most accurate output */  
+  /* Setup PLLA to integer only mode @ 900MHz (must be 600..900MHz) */
+  /* Set Multisynth 0 to 112.5MHz using integer only mode (div by 4/6/8) */
+  /* 25MHz * 36 = 900 MHz, then 900 MHz / 8 = 112.5 MHz */
+  Serial.println("Set PLLA to 900MHz");
+  HSClockGen.setupPLLInt(SI5351_PLL_A, 36);
+  Serial.println("Set Output #0 to 112.5MHz");  
+  HSClockGen.setupMultisynthInt(0, SI5351_PLL_A, SI5351_MULTISYNTH_DIV_8);
 
-    Serial.println(micros());
-    sweepgenCreate(2000, 0);
-    Serial.println(micros());
+  /* FRACTIONAL MODE --> More flexible but introduce clock jitter */
+  /* Setup PLLB to fractional mode @616.66667MHz (XTAL * 24 + 2/3) */
+  /* Setup Multisynth 1 to 13.55311MHz (PLLB/45.5) */
+  HSClockGen.setupPLL(SI5351_PLL_B, 24, 2, 3);
+  Serial.println("Set Output #1 to 13.553115MHz");  
+  HSClockGen.setupMultisynth(1, SI5351_PLL_B, 45, 1, 2);
 
-    Serial.println(micros());
-    sweepgenCreate(2000, 1);
-    Serial.println(micros());
+  /* Multisynth 2 is not yet used and won't be enabled, but can be */
+  /* Use PLLB @ 616.66667MHz, then divide by 900 -> 685.185 KHz */
+  /* then divide by 64 for 10.706 KHz */
+  /* configured using either PLL in either integer or fractional mode */
 
-    Serial.println(micros());
-    sweepgenCreate(2000, 2);
-    Serial.println(micros());
+  Serial.println("Set Output #2 to 10.706 KHz");  
+  HSClockGen.setupMultisynth(2, SI5351_PLL_B, 900, 0, 1);
+  HSClockGen.setupRdiv(2, SI5351_R_DIV_64);
+    
+  /* Enable the clocks */
+  HSClockGen.enableOutputs(true);
+  Serial.println("\nI2C Scanner");
+  byte error, address;
+  int nDevices;
+  Serial.println("Scanning...");
+  nDevices = 0;
+  for(address = 1; address < 127; address++ ) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0) {
+      Serial.print("I2C device found at address 0x");
+      if (address<16) {
+        Serial.print("0");
+      }
+      Serial.println(address,HEX);
+      nDevices++;
+    }
+    else if (error==4) {
+      Serial.print("Unknow error at address 0x");
+      if (address<16) {
+        Serial.print("0");
+      }
+      Serial.println(address,HEX);
+    }    
+  }
+  if (nDevices == 0) {
+    Serial.println("No I2C devices found\n");
+  }
+  else {
+    Serial.println("done\n");
+  }
+  delay(5000);          
 
-    Serial.println(micros());
-    sweepgenCreate(2000, 4);
-    Serial.println(micros());
 
-    Serial.println(micros());
-    sweepgenCreate(2000, 16);
-    Serial.println(micros());
+  // //create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
+  // xTaskCreatePinnedToCore(
+  //                   DDSManagementCode,  /* Task function. */
+  //                   "DDSManagement",    /* name of task. */
+  //                   10000,              /* Stack size of task */
+  //                   NULL,               /* parameter of the task */
+  //                   1,                  /* priority of the task */
+  //                   &DDSManagement,     /* Task handle to keep track of created task */
+  //                   0);                 /* pin task to core 0 */                  
 
-/*     // to use DMA buffer, use these methods to allocate buffer
-    spi_slave_tx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
-    spi_slave_rx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
+  // // put your setup code here, to run once:
+  //   Serial.begin(115200);
 
-    set_buffer();
+  //   Serial.println(micros());
+  //   sweepgenCreate(2000, 0);
+  //   Serial.println(micros());
 
-    delay(5000);
+  //   Serial.println(micros());
+  //   sweepgenCreate(2000, 1);
+  //   Serial.println(micros());
 
-    rxSPI.setDataMode(SPI_MODE1); // for DMA, only 1 or 3 is available
-    rxSPI.setMaxTransferSize(BUFFER_SIZE);
-    rxSPI.setDMAChannel(2); // 1 or 2 only
-    rxSPI.setQueueSize(1); // transaction queue size
-    // begin() after setting
-    // HSPI = CS: 15, CLK: 14, MOSI: 13, MISO: 12
-    rxSPI.begin(HSPI);
+  //   Serial.println(micros());
+  //   sweepgenCreate(2000, 2);
+  //   Serial.println(micros());
 
-    printf("Main code running on core : %d\n", xPortGetCoreID());
+  //   Serial.println(micros());
+  //   sweepgenCreate(2000, 4);
+  //   Serial.println(micros());
 
-    xTaskCreatePinnedToCore(task_wait_spi, "task_wait_spi", 2048, NULL, 2, &task_handle_wait_spi, CORE_TASK_SPI_SLAVE);
-    xTaskNotifyGive(task_handle_wait_spi);
+  //   Serial.println(micros());
+  //   sweepgenCreate(2000, 16);
+  //   Serial.println(micros());
 
-    xTaskCreatePinnedToCore(task_process_buffer, "task_process_buffer", 2048, NULL, 2, &task_handle_process_buffer, CORE_TASK_PROCESS_BUFFER);
- */}
+  //    // to use DMA buffer, use these methods to allocate buffer
+  //   spi_slave_tx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
+  //   spi_slave_rx_buf = rxSPI.allocDMABuffer(BUFFER_SIZE);
 
-void loop() {
+  //   set_buffer();
+
+  //   delay(5000);
+
+  //   rxSPI.setDataMode(SPI_MODE1); // for DMA, only 1 or 3 is available
+  //   rxSPI.setMaxTransferSize(BUFFER_SIZE);
+  //   rxSPI.setDMAChannel(2); // 1 or 2 only
+  //   rxSPI.setQueueSize(1); // transaction queue size
+  //   // begin() after setting
+  //   // HSPI = CS: 15, CLK: 14, MOSI: 13, MISO: 12
+  //   rxSPI.begin(HSPI);
+
+  //   printf("Main code running on core : %d\n", xPortGetCoreID());
+
+  //   xTaskCreatePinnedToCore(task_wait_spi, "task_wait_spi", 2048, NULL, 2, &task_handle_wait_spi, CORE_TASK_SPI_SLAVE);
+  //   xTaskNotifyGive(task_handle_wait_spi);
+
+  //   xTaskCreatePinnedToCore(task_process_buffer, "task_process_buffer", 2048, NULL, 2, &task_handle_process_buffer, CORE_TASK_PROCESS_BUFFER);
+}
+
+
+#define SI5351_FREQ_MULT                100ULL
+#define SI5351_PLL_FIXED                80000000000ULL
+
+void loop() 
+{
+
+  // Read the Status Register and print it every 10 seconds
+//  Serial.println(HSCFrequency);
+//   HSClockGen.set_freq((HSCFrequency * SI5351_FREQ_MULT), SI5351_PLL_FIXED, SI5351_CLK1);
+//   HSClockGen.set_freq(HSCFrequency, SI5351_CLK0);
+//   HSClockGen.update_status();
+//   Serial.print("corr: ");
+// //  Serial.print(HSClockGen.get_correction());
+//   Serial.print("  SYS_INIT: ");
+//   Serial.print(HSClockGen.dev_status.SYS_INIT);
+//   Serial.print("  LOL_A: ");
+//   Serial.print(HSClockGen.dev_status.LOL_A);
+//   Serial.print("  LOL_B: ");
+//   Serial.print(HSClockGen.dev_status.LOL_B);
+//   Serial.print("  LOS: ");
+//   Serial.print(HSClockGen.dev_status.LOS);
+//   Serial.print("  REVID: ");
+//   Serial.println(HSClockGen.dev_status.REVID);
+
+//   delay(10000);
+//   if (HSCFrequency>1000000)
+//   {
+//     HSCFrequency=80000;
+//   }
+//   else
+//   {
+//     HSCFrequency=144000000;
+//   }
+  
+//  HSCFrequency += 1000;
   //  Serial.println("ESP32");
   // put your main code here, to run repeatedly:
 }
