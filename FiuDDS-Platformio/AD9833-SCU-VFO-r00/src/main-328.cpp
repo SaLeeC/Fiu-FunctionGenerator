@@ -4,6 +4,7 @@
 #include "RTCManagement.cpp"
 #include "IICScanner.cpp"
 #include "AT24C32Management.cpp"
+#include "RotaryManagement.cpp"
 
 #include <SPI.h>
 #include <Wire.h>
