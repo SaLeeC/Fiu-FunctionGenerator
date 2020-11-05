@@ -18,6 +18,11 @@ uint32_t IFreq,
          FreqTX,
          FreqRX;
 
+uint32_t FrequencyLimit[3][2] = {{27000000,29000000},
+                        {26000000,29000000},
+                          {400000,  500000}
+                       };
+
 //Puntatore della EEPROM da 32K
 uint16_t eeprom32Pointer[270] = {
                                  FZeroTx,

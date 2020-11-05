@@ -42,6 +42,7 @@ void displayFrequency(uint32_t Freq0, uint32_t Freq1, uint32_t IFreq)
 
 void displayFrequencyLoop(uint8_t Xx, uint8_t iiiY, uint8_t Size, uint32_t Freq, String Titolo)
 {
+  display.fillRect(Xx, iiiY,(128 - Xx), (8 * Size),SSD1306_BLACK);
   uint8_t iiiXStep = 6 * Size;
   uint8_t iiiFlag = 0;//Marca la prima cifra significativa diversa da 0 (zero)
   uint8_t iiiValue = 0;//E' la cifra corrente

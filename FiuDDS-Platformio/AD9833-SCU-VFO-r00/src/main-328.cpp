@@ -28,9 +28,14 @@ void setup()
   EEPROMsetup();
   RTCsetup();
   displayFrequency(FreqTX, FreqRX, IFreq);
+  RotaruSetup();
 }
 
 void loop() 
 {
   RTCloop();
+  RotaryManagement();
+  displayFrequency(FreqTX, FreqRX, IFreq);
+  delay(50);
+  //Serial.println("123");
 }
