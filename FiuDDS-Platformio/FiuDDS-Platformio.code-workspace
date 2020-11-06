@@ -11,6 +11,10 @@
 		{
 			"name": "AD9833-SCU-VFO-r00",
 			"path": "AD9833-SCU-VFO-r00"
+		},
+		{
+			"name": "SI5351 Test",
+			"path": "C:\\Users\\ProBook\\OneDrive\\Documents\\PlatformIO\\Projects\\SI5351 Test"
 		}
 	],
 	"settings": {}

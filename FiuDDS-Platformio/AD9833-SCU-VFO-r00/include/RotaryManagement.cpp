@@ -73,7 +73,6 @@ void RotaryTurn()
   RotaryState = FrequencyRotary.rotate();
 }
 
-
 void RotaryManagement()
 {
   //Aggiorna lo stato degli encoder
@@ -92,19 +91,24 @@ void RotaryManagement()
       //Se è stato girato elimina le informazioni provenienti dagli altri encoder 
       RotaryState = RotaryState & B00000011;
       //E attua la modifica richiesta con la rotazione
-      FreqTX = RotaryTurnAction(FreqTX,
-                                FrequencyStepValue[0],
-                                FrequencyLimit[0][0],
-                                FrequencyLimit[0][1]);
-      // //Aggiorna la visualizzazione sul display 7 segmenti
-      // FrequencyDisplay.printDigit(Frequency[FreqL], 0);
-      // //Aggiorna il limite inferiore della Frequency H ponendolo al valore attuale della Frequency L
-      // FrequencyLimit[FrequencyWaveCurrentType][LimitL][FreqH] = Frequency[FreqL];
-      // //Aggiorna la presentazione dei limiti sul TFT
-      // TftFrequencyLimit();
+      if (FrequencyRotary.push() == 1)
+      {
+        FreqRX = RotaryTurnAction(FreqRX,
+                                  FrequencyStepValue[1],
+                                  FrequencyLimit[1][0],
+                                  FrequencyLimit[1][1]);
+      }
+      else
+      {
+        FreqTX = RotaryTurnAction(FreqTX,
+                                  FrequencyStepValue[0],
+                                  FrequencyLimit[0][0],
+                                  FrequencyLimit[0][1]);
+        FreqRX = FreqTX;
+      }
+      
     }
   }  
-  RotaryState = 0;  
 }
 
 
